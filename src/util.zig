@@ -30,6 +30,60 @@ pub const Grid = struct {
 
 pub const Direction = enum { up, down, left, right };
 
+pub const WalkOptions = struct {
+    wraparound_horizontal: bool = false,
+    wraparound_vertical: bool = false,
+};
+
+pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?usize {
+    var x = idx % grid.width;
+    var y = idx / grid.width;
+
+    switch (direction) {
+        .up => {
+            if (y == 0) {
+                if (!opts.wraparound_vertical) {
+                    return null;
+                }
+
+                y = grid.height - 1;
+            } else {
+                y = y - 1;
+            }
+        },
+        .down => {
+            if (y == grid.height - 1) {
+                if (!opts.wraparound_vertical) {
+                    return null;
+                }
+                y = 0;
+            } else {
+                y = (y + 1);
+            }
+        },
+        .left => {
+            if (x == 0) {
+                if (opts.wraparound_horizontal) {
+                    x = grid.width - 2;
+                } else {
+                    return null;
+                }
+            } else {
+                x = x - 1;
+            }
+        },
+        .right => {
+            if (x == grid.width - 2 and !opts.wraparound_horizontal) {
+                return null;
+            }
+
+            x = (x + 1) % (grid.width - 1);
+        },
+    }
+
+    return y * grid.width + x;
+}
+
 // infinite iterator
 pub const DirectionIterator = struct {
     grid: Grid,
@@ -37,56 +91,20 @@ pub const DirectionIterator = struct {
     idx: usize,
     is_first: bool = true,
 
-    wraps_left_to_right: bool = true,
-
-    fn walk(self: *DirectionIterator) bool {
-        var x = self.idx % self.grid.width;
-        var y = self.idx / self.grid.width;
-
-        switch (self.direction) {
-            .up => {
-                if (y == 0) {
-                    return false;
-                } else {
-                    y = y - 1;
-                }
-            },
-            .down => {
-                if (y == self.grid.height - 1) {
-                    return false;
-                }
-                y = (y + 1);
-            },
-            .left => {
-                if (x == 0) {
-                    if (self.wraps_left_to_right) {
-                        x = self.grid.width - 2;
-                    } else {
-                        return false;
-                    }
-                } else {
-                    x = x - 1;
-                }
-            },
-            .right => {
-                if (x == self.grid.width - 2 and !self.wraps_left_to_right) {
-                    return false;
-                }
-
-                x = (x + 1) % (self.grid.width - 1);
-            },
-        }
-
-        self.idx = y * self.grid.width + x;
-        return true;
-    }
+    walk_opts: WalkOptions = .{ .wraparound_horizontal = true, .wraparound_vertical = false },
 
     pub fn next(self: *DirectionIterator) ?u8 {
         if (self.is_first) {
             self.is_first = false;
-        } else if (!self.walk()) {
-            return null;
+        } else {
+            const next_idx = walk(self.grid, self.idx, self.direction, self.walk_opts);
+            if (next_idx == null) {
+                return null;
+            } else {
+                self.idx = next_idx.?;
+            }
         }
+
         return self.grid.lines[self.idx];
     }
 };
@@ -99,7 +117,7 @@ pub fn createGrid(lines: []const u8) Grid {
     };
 }
 
-test "DirectionIterator" {
+test "DirectionIterator - right (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
     const grid = createGrid(lines);
     var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid };
@@ -112,16 +130,75 @@ test "DirectionIterator" {
     try expectEqual('L', it.next());
     try expectEqual('T', it.next());
     try expectEqual('H', it.next());
-    it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid };
+}
+
+test "DirectionIterator - right (no wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+    var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = false } };
+    try expectEqual('H', it.next());
+    try expectEqual('E', it.next());
+    try expectEqual('L', it.next());
+    try expectEqual('W', it.next());
+    try expectEqual('O', it.next());
+    try expectEqual('R', it.next());
+    try expectEqual('L', it.next());
+    try expectEqual('T', it.next());
+    try expectEqual(null, it.next());
+}
+
+test "DirectionIterator - down (no wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+    var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
     try expectEqual('T', it.next());
     try expectEqual(null, it.next());
-    it = DirectionIterator{ .direction = .left, .idx = 0, .grid = grid };
+}
+
+test "DirectionIterator - down (wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+    var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_vertical = true } };
+    try expectEqual('H', it.next());
+    try expectEqual('E', it.next());
+    try expectEqual('T', it.next());
+    try expectEqual('H', it.next());
+}
+
+test "DirectionIterator - left (wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+    var it = DirectionIterator{ .direction = .left, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('T', it.next());
     try expectEqual('L', it.next());
-    it = DirectionIterator{ .direction = .up, .idx = 0, .grid = grid };
+}
+
+test "DirectionIterator - left (no wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+    var it = DirectionIterator{ .direction = .left, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = false } };
     try expectEqual('H', it.next());
     try expectEqual(null, it.next());
+}
+
+test "DirectionIterator - up (no wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+
+    var it = DirectionIterator{ .direction = .up, .idx = 0, .grid = grid };
+    try expectEqual('H', it.next());
+    try expectEqual(null, it.next());
+}
+
+test "DirectionIterator - up (wraparound)" {
+    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
+    const grid = createGrid(lines);
+
+    var it = DirectionIterator{ .direction = .up, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_vertical = true } };
+    try expectEqual('H', it.next());
+    try expectEqual('T', it.next());
+    try expectEqual('E', it.next());
 }
