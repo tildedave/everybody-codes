@@ -1,6 +1,7 @@
 const std = @import("std");
 const quest1 = @import("quest1.zig");
 const quest2 = @import("quest2.zig");
+const util = @import("util.zig");
 
 pub fn main() !void {
     var iter = std.process.args();
@@ -29,16 +30,20 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, quest, "quest2")) {
         const words_line = splits.first();
-        var words = std.mem.splitScalar(u8, words_line, ':');
-        _ = words.next();
+        var words_iterator = std.mem.splitScalar(u8, words_line, ':');
+        _ = words_iterator.next();
+        const words = words_iterator.next().?;
         _ = splits.next();
 
         if (std.mem.eql(u8, part, "1")) {
             const line = splits.next().?;
-            std.debug.print("{d}", .{quest2.answer1(words.next().?, line)});
+            std.debug.print("{d}", .{quest2.answer1(words, line)});
         }
         if (std.mem.eql(u8, part, "2")) {
-            std.debug.print("{d}", .{quest2.answer2(words.next().?, splits)});
+            std.debug.print("{d}", .{quest2.answer2(words, splits)});
+        }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{d}", .{quest2.answer3(words, lines[util.nthIndexOfScalar(u8, lines, '\n', 1).? + 1 ..])});
         }
     }
 }

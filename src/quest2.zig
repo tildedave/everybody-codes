@@ -74,3 +74,11 @@ test "answer2 expected" {
     try expectEqual(3, runicSymbols(words, "THE"));
     try expectEqual(3, runicSymbols(words, "EHT"));
 }
+
+pub fn answer3(words: []const u8, lines: []const u8) u64 {
+    // lines includes newlines
+    const width = std.mem.indexOfScalar(u8, lines, '\n').?;
+
+    std.debug.print("words: {s} width: {d} line len {d}\n", .{ words, width, lines.len });
+    return 0;
+}
