@@ -49,6 +49,11 @@ pub fn main() !void {
     }
 
     if (std.mem.eql(u8, quest, "quest3")) {
-        std.debug.print("{d}", .{try quest3.answer1(lines)});
+        if (std.mem.eql(u8, part, "1")) {
+            std.debug.print("{d}", .{try quest3.answer1(lines)});
+        }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{d}", .{try quest3.answer3(lines)});
+        }
     }
 }

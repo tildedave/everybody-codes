@@ -28,60 +28,94 @@ pub const Grid = struct {
     height: usize,
 };
 
-pub const Direction = enum { up, down, left, right };
+pub const Direction = enum { up, down, left, right, upleft, upright, downleft, downright };
+
+pub const cardinalDirections: []const Direction = &[_]Direction{ .up, .down, .left, .right };
+pub const allDirections: []const Direction = &[_]Direction{ .up, .upright, .right, .downright, .down, .downleft, .left, .upleft };
 
 pub const WalkOptions = struct {
     wraparound_horizontal: bool = false,
     wraparound_vertical: bool = false,
 };
 
+fn up_y(grid: Grid, y: usize, opts: WalkOptions) ?usize {
+    if (y == 0) {
+        if (!opts.wraparound_vertical) {
+            return null;
+        }
+
+        return grid.height - 1;
+    } else {
+        return y - 1;
+    }
+}
+
+fn down_y(grid: Grid, y: usize, opts: WalkOptions) ?usize {
+    if (y == grid.height - 1) {
+        if (!opts.wraparound_vertical) {
+            return null;
+        }
+        return 0;
+    } else {
+        return (y + 1);
+    }
+}
+
+fn left_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
+    if (x == 0) {
+        if (opts.wraparound_horizontal) {
+            return grid.width - 2;
+        } else {
+            return null;
+        }
+    } else {
+        return x - 1;
+    }
+}
+
+fn right_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
+    if (x == grid.width - 2 and !opts.wraparound_horizontal) {
+        return null;
+    }
+
+    return (x + 1) % (grid.width - 1);
+}
+
 pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?usize {
-    var x = idx % grid.width;
-    var y = idx / grid.width;
+    const x = idx % grid.width;
+    const y = idx / grid.width;
+
+    var next_y: ?usize = y;
+    var next_x: ?usize = x;
 
     switch (direction) {
-        .up => {
-            if (y == 0) {
-                if (!opts.wraparound_vertical) {
-                    return null;
-                }
-
-                y = grid.height - 1;
-            } else {
-                y = y - 1;
-            }
+        .up => next_y = up_y(grid, y, opts),
+        .down => next_y = down_y(grid, y, opts),
+        .left => next_x = left_x(grid, x, opts),
+        .right => next_x = right_x(grid, x, opts),
+        .upleft => {
+            next_x = left_x(grid, x, opts);
+            next_y = up_y(grid, y, opts);
         },
-        .down => {
-            if (y == grid.height - 1) {
-                if (!opts.wraparound_vertical) {
-                    return null;
-                }
-                y = 0;
-            } else {
-                y = (y + 1);
-            }
+        .upright => {
+            next_x = right_x(grid, x, opts);
+            next_y = up_y(grid, y, opts);
         },
-        .left => {
-            if (x == 0) {
-                if (opts.wraparound_horizontal) {
-                    x = grid.width - 2;
-                } else {
-                    return null;
-                }
-            } else {
-                x = x - 1;
-            }
+        .downleft => {
+            next_x = left_x(grid, x, opts);
+            next_y = down_y(grid, y, opts);
         },
-        .right => {
-            if (x == grid.width - 2 and !opts.wraparound_horizontal) {
-                return null;
-            }
-
-            x = (x + 1) % (grid.width - 1);
+        .downright => {
+            next_x = right_x(grid, x, opts);
+            next_y = down_y(grid, y, opts);
         },
     }
 
-    return y * grid.width + x;
+    if (next_x == null or next_y == null) {
+        return null;
+    }
+
+    return next_y.? * grid.width + next_x.?;
 }
 
 // infinite iterator
@@ -121,13 +155,12 @@ pub const NeighborIterator = struct {
     grid: Grid,
     idx: usize,
     walk_opts: WalkOptions = .{ .wraparound_horizontal = false, .wraparound_vertical = false },
-    directions: []const Direction = [_]Direction{ .up, .right, .down, .left },
+    directions: []const Direction = &[_]Direction{ .up, .right, .down, .left },
     dir_idx: usize = 0,
 
     pub fn next(self: *NeighborIterator) ?u8 {
-        const dirs = [_]Direction{ .up, .right, .down, .left };
-        while (self.dir_idx < 4) {
-            const dir = dirs[self.dir_idx];
+        while (self.dir_idx < self.directions.len) {
+            const dir = self.directions[self.dir_idx];
             const next_idx = walk(self.grid, self.idx, dir, self.walk_opts);
             self.dir_idx += 1;
 
@@ -147,6 +180,24 @@ test "NeighborIterator" {
     try expectEqual('.', it.next());
     try expectEqual('#', it.next());
     try expectEqual('.', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual(null, it.next());
+}
+
+test "NeighborIterator (all neighbors)" {
+    const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
+    const grid = createGrid(lines);
+    var it = NeighborIterator{ .grid = grid, .idx = 13, .directions = allDirections };
+    try expectEqual('#', grid.lines[13]);
+    try expectEqual('.', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual('#', it.next());
+    try expectEqual('#', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual('.', it.next());
+    try expectEqual(null, it.next());
 }
 
 test "DirectionIterator - right (wraparound)" {

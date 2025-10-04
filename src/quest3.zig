@@ -2,7 +2,7 @@ const std = @import("std");
 const util = @import("util.zig");
 const expectEqual = std.testing.expectEqual;
 
-fn dig(lines: []u8, next_lines: []u8) u32 {
+fn dig(lines: []u8, next_lines: []u8, directions: []const util.Direction) u32 {
     var holes_dug: u32 = 0;
     const grid = util.createGrid(lines);
     for (0..grid.lines.len) |idx| {
@@ -12,12 +12,12 @@ fn dig(lines: []u8, next_lines: []u8) u32 {
         }
 
         if (grid.lines[idx] == '#') {
-            var it = util.NeighborIterator{ .grid = grid, .idx = idx };
+            var it = util.NeighborIterator{ .grid = grid, .idx = idx, .directions = directions };
             var k: u8 = 0;
             while (it.next() == '#') {
                 k += 1;
             }
-            if (k == 4) {
+            if (k == directions.len) {
                 holes_dug += 1;
                 next_lines[idx] = '#';
             } else {
@@ -31,7 +31,7 @@ fn dig(lines: []u8, next_lines: []u8) u32 {
     return holes_dug;
 }
 
-pub fn answer1(lines: []const u8) !usize {
+pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
     const initial = std.mem.count(u8, lines, &[_]u8{'#'});
     const allocator = std.heap.page_allocator;
 
@@ -44,7 +44,7 @@ pub fn answer1(lines: []const u8) !usize {
     while (holes_dug != 0) {
         const next_lines: []u8 = try allocator.alloc(u8, lines.len);
 
-        holes_dug = dig(curr_lines, next_lines);
+        holes_dug = dig(curr_lines, next_lines, directions);
         total += holes_dug;
         allocator.free(curr_lines);
 
@@ -53,6 +53,14 @@ pub fn answer1(lines: []const u8) !usize {
 
     allocator.free(curr_lines);
     return total;
+}
+
+pub fn answer1(lines: []const u8) !usize {
+    return digArea(lines, util.cardinalDirections);
+}
+
+pub fn answer3(lines: []const u8) !usize {
+    return digArea(lines, util.allDirections);
 }
 
 test "can remove" {
@@ -69,7 +77,12 @@ test "can remove" {
     defer allocator.free(next_lines);
 }
 
-test "given example" {
+test "given example (part 1)" {
     const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
     try expectEqual(35, answer1(lines));
+}
+
+test "given example (part 3)" {
+    const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
+    try expectEqual(29, answer3(lines));
 }
