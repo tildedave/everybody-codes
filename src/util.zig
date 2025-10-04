@@ -117,11 +117,11 @@ pub fn createGrid(lines: []const u8) Grid {
     };
 }
 
-const NeighborIterator = struct {
+pub const NeighborIterator = struct {
     grid: Grid,
     idx: usize,
     walk_opts: WalkOptions = .{ .wraparound_horizontal = false, .wraparound_vertical = false },
-
+    directions: []const Direction = [_]Direction{ .up, .right, .down, .left },
     dir_idx: usize = 0,
 
     pub fn next(self: *NeighborIterator) ?u8 {

@@ -1,6 +1,7 @@
 const std = @import("std");
 const quest1 = @import("quest1.zig");
 const quest2 = @import("quest2.zig");
+const quest3 = @import("quest3.zig");
 const util = @import("util.zig");
 
 pub fn main() !void {
@@ -45,5 +46,9 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "3")) {
             std.debug.print("{d}", .{quest2.answer3(words, lines[util.nthIndexOfScalar(u8, lines, '\n', 1).? + 1 ..])});
         }
+    }
+
+    if (std.mem.eql(u8, quest, "quest3")) {
+        std.debug.print("{d}", .{try quest3.answer1(lines)});
     }
 }
