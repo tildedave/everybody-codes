@@ -87,14 +87,14 @@ pub fn findWord(word: []const u8, grid: Grid, bset: *std.bit_set.IntegerBitSet(3
         }
 
         for ([_]Direction{ .up, .down, .left, .right }) |dir| {
-            var it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid };
+            var it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
             var k: usize = 0;
             while (k < word.len and it.next() == word[k]) {
                 k += 1;
             }
             if (k == word.len) {
                 k = 0;
-                it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid };
+                it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
                 while (k < word.len and it.next() == word[k]) {
                     bset.setValue(it.idx, true);
                     k += 1;

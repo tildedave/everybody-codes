@@ -91,7 +91,7 @@ pub const DirectionIterator = struct {
     idx: usize,
     is_first: bool = true,
 
-    walk_opts: WalkOptions = .{ .wraparound_horizontal = true, .wraparound_vertical = false },
+    walk_opts: WalkOptions = .{ .wraparound_horizontal = false, .wraparound_vertical = false },
 
     pub fn next(self: *DirectionIterator) ?u8 {
         if (self.is_first) {
@@ -117,10 +117,42 @@ pub fn createGrid(lines: []const u8) Grid {
     };
 }
 
+const NeighborIterator = struct {
+    grid: Grid,
+    idx: usize,
+    walk_opts: WalkOptions = .{ .wraparound_horizontal = false, .wraparound_vertical = false },
+
+    dir_idx: usize = 0,
+
+    pub fn next(self: *NeighborIterator) ?u8 {
+        const dirs = [_]Direction{ .up, .right, .down, .left };
+        while (self.dir_idx < 4) {
+            const dir = dirs[self.dir_idx];
+            const next_idx = walk(self.grid, self.idx, dir, self.walk_opts);
+            self.dir_idx += 1;
+
+            if (next_idx != null) {
+                return self.grid.lines[next_idx.?];
+            }
+        }
+        return null;
+    }
+};
+
+test "NeighborIterator" {
+    const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
+    const grid = createGrid(lines);
+    var it = NeighborIterator{ .grid = grid, .idx = 13 };
+    try expectEqual('#', grid.lines[13]);
+    try expectEqual('.', it.next());
+    try expectEqual('#', it.next());
+    try expectEqual('.', it.next());
+}
+
 test "DirectionIterator - right (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
     const grid = createGrid(lines);
-    var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid };
+    var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
     try expectEqual('L', it.next());
@@ -150,7 +182,7 @@ test "DirectionIterator - right (no wraparound)" {
 test "DirectionIterator - down (no wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
     const grid = createGrid(lines);
-    var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid };
+    var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
     try expectEqual('T', it.next());
