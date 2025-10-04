@@ -21,3 +21,7 @@ test "nthIndexOfScalar" {
     try expectEqual(2, nthIndexOfScalar(u8, "aaaa", 'a', 2));
     try expectEqual(3, nthIndexOfScalar(u8, "aaaa", 'a', 3));
 }
+
+test "modulus" {
+    try expectEqual(5, (-1) % 6);
+}
