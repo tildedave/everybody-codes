@@ -1,4 +1,9 @@
 const std = @import("std");
+const util = @import("util.zig");
+const Grid = util.Grid;
+const createGrid = util.createGrid;
+const Direction = util.Direction;
+const DirectionIterator = util.DirectionIterator;
 const expectEqual = std.testing.expectEqual;
 
 pub fn answer1(words: []const u8, line: []const u8) u64 {
@@ -75,119 +80,27 @@ test "answer2 expected" {
     try expectEqual(3, runicSymbols(words, "EHT"));
 }
 
-const Direction = enum { up, down, left, right };
-
-const Grid = struct {
-    lines: []const u8,
-    width: usize,
-    height: usize,
-};
-
-// infinite iterator
-const DirectionIterator = struct {
-    grid: Grid,
-
-    direction: Direction,
-    x: usize,
-    y: usize,
-
-    idx: usize = 0,
-    is_first: bool = true,
-
-    fn walk(self: *DirectionIterator) bool {
-        switch (self.direction) {
-            .up => {
-                if (self.y == 0) {
-                    return false;
-                } else {
-                    self.y = self.y - 1;
-                }
-            },
-            .down => {
-                if (self.y == self.grid.height - 1) {
-                    return false;
-                }
-                self.y = (self.y + 1);
-            },
-            .left => {
-                if (self.x == 0) {
-                    self.x = self.grid.width - 1;
-                } else {
-                    self.x = self.x - 1;
-                }
-            },
-            .right => self.x = (self.x + 1) % self.grid.width,
-        }
-
-        return true;
-    }
-
-    fn next(self: *DirectionIterator) ?u8 {
-        if (self.is_first) {
-            self.is_first = false;
-        } else if (!self.walk()) {
-            return null;
-        }
-        self.idx = self.y * (self.grid.width + 1) + self.x;
-        return self.grid.lines[self.idx];
-    }
-};
-
-pub fn createGrid(lines: []const u8) Grid {
-    return Grid{
-        .lines = lines,
-        .width = std.mem.indexOfScalar(u8, lines, '\n').?,
-        .height = std.mem.count(u8, lines, &[_]u8{'\n'}),
-    };
-}
-
-test "DirectionIterator" {
-    const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
-    var it = DirectionIterator{ .direction = .right, .x = 0, .y = 0, .grid = grid };
-    try expectEqual('H', it.next());
-    try expectEqual('E', it.next());
-    try expectEqual('L', it.next());
-    try expectEqual('W', it.next());
-    try expectEqual('O', it.next());
-    try expectEqual('R', it.next());
-    try expectEqual('L', it.next());
-    try expectEqual('T', it.next());
-    try expectEqual('H', it.next());
-    it = DirectionIterator{ .direction = .down, .x = 0, .y = 0, .grid = grid };
-    try expectEqual('H', it.next());
-    try expectEqual('E', it.next());
-    try expectEqual('T', it.next());
-    try expectEqual(null, it.next());
-    it = DirectionIterator{ .direction = .left, .x = 0, .y = 0, .grid = grid };
-    try expectEqual('H', it.next());
-    try expectEqual('T', it.next());
-    try expectEqual('L', it.next());
-    it = DirectionIterator{ .direction = .up, .x = 0, .y = 0, .grid = grid };
-    try expectEqual('H', it.next());
-    try expectEqual(null, it.next());
-}
-
 pub fn findWord(word: []const u8, grid: Grid, bset: *std.bit_set.IntegerBitSet(32_768)) void {
-    for (0..grid.width) |x| {
-        for (0..grid.height) |y| {
-            // std.debug.print("x={d} y={d}\n", .{ x, y });
-            for ([_]Direction{ .up, .down, .left, .right }) |dir| {
-                var it = DirectionIterator{ .direction = dir, .x = x, .y = y, .grid = grid };
-                var k: usize = 0;
+    for (0..grid.lines.len) |idx| {
+        if (grid.lines[idx] == '\n') {
+            continue;
+        }
+
+        for ([_]Direction{ .up, .down, .left, .right }) |dir| {
+            var it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid };
+            var k: usize = 0;
+            while (k < word.len and it.next() == word[k]) {
+                k += 1;
+            }
+            if (k == word.len) {
+                k = 0;
+                it = DirectionIterator{ .direction = dir, .idx = idx, .grid = grid };
                 while (k < word.len and it.next() == word[k]) {
+                    bset.setValue(it.idx, true);
                     k += 1;
                 }
-                if (k == word.len) {
-                    k = 0;
-                    it = DirectionIterator{ .direction = dir, .x = x, .y = y, .grid = grid };
-                    while (k < word.len and it.next() == word[k]) {
-                        bset.setValue(it.idx, true);
-                        k += 1;
-                    }
-                } else {
-                    // std.debug.print("no match at x={d} y={d} k={d}\n", .{ x, y, k });
-                }
+            } else {
+                // std.debug.print("no match at x={d} y={d} k={d}\n", .{ x, y, k });
             }
         }
     }
