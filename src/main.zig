@@ -1,5 +1,6 @@
 const std = @import("std");
 const quest1 = @import("quest1.zig");
+const quest2 = @import("quest2.zig");
 
 pub fn main() !void {
     var iter = std.process.args();
@@ -14,14 +15,30 @@ pub fn main() !void {
     var splits = std.mem.splitScalar(u8, lines, '\n');
 
     if (std.mem.eql(u8, quest, "quest1")) {
+        const line = splits.first();
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}", .{quest1.answer1(splits.first())});
+            std.debug.print("{d}", .{quest1.answer1(line)});
         }
         if (std.mem.eql(u8, part, "2")) {
-            std.debug.print("{d}", .{quest1.answer2(splits.first())});
+            std.debug.print("{d}", .{quest1.answer2(line)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}", .{quest1.answer3(splits.first())});
+            std.debug.print("{d}", .{quest1.answer3(line)});
+        }
+    }
+
+    if (std.mem.eql(u8, quest, "quest2")) {
+        const words_line = splits.first();
+        var words = std.mem.splitScalar(u8, words_line, ':');
+        _ = words.next();
+        _ = splits.next();
+
+        if (std.mem.eql(u8, part, "1")) {
+            const line = splits.next().?;
+            std.debug.print("{d}", .{quest2.answer1(words.next().?, line)});
+        }
+        if (std.mem.eql(u8, part, "2")) {
+            std.debug.print("{d}", .{quest2.answer2(words.next().?, splits)});
         }
     }
 }
