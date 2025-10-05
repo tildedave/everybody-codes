@@ -61,5 +61,8 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "1")) {
             std.debug.print("{d}", .{quest4.answer1(lines)});
         }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{d}", .{quest4.answer3(lines)});
+        }
     }
 }
