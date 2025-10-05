@@ -33,25 +33,27 @@ fn dig(lines: []u8, next_lines: []u8, directions: []const util.Direction) u32 {
 
 pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
     const initial = std.mem.count(u8, lines, &[_]u8{'#'});
-    const allocator = std.heap.page_allocator;
 
     var total = initial;
     var holes_dug = initial;
 
+    const allocator = std.heap.page_allocator;
     var curr_lines = try allocator.alloc(u8, lines.len);
+    var next_lines = try allocator.alloc(u8, lines.len);
+    defer allocator.free(curr_lines);
+    defer allocator.free(next_lines);
+
     std.mem.copyForwards(u8, curr_lines, lines);
 
     while (holes_dug != 0) {
-        const next_lines: []u8 = try allocator.alloc(u8, lines.len);
-
         holes_dug = dig(curr_lines, next_lines, directions);
         total += holes_dug;
-        allocator.free(curr_lines);
 
+        const temp = curr_lines;
         curr_lines = next_lines;
+        next_lines = temp;
     }
 
-    allocator.free(curr_lines);
     return total;
 }
 
