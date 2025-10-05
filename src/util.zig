@@ -285,3 +285,30 @@ test "DirectionIterator - up (wraparound)" {
     try expectEqual('T', it.next());
     try expectEqual('E', it.next());
 }
+
+pub const NumberIterator = struct {
+    lines: []const u8,
+    lines_iterator: ?std.mem.SplitIterator(u8, .scalar) = null,
+
+    pub fn next(self: *NumberIterator) ?u32 {
+        if (self.lines_iterator == null) {
+            self.lines_iterator = std.mem.splitScalar(u8, self.lines, '\n');
+        }
+        const num_str = self.lines_iterator.?.next();
+        if (num_str == null) {
+            return null;
+        }
+
+        const result = std.fmt.parseInt(u32, num_str.?, 10) catch null;
+        return result;
+    }
+};
+
+test "NumberIterator" {
+    const lines = "14\n15\n9\n10024\n";
+    var it = NumberIterator{ .lines = lines };
+    try expectEqual(14, it.next());
+    try expectEqual(15, it.next());
+    try expectEqual(9, it.next());
+    try expectEqual(10024, it.next());
+}

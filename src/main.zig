@@ -2,6 +2,7 @@ const std = @import("std");
 const quest1 = @import("quest1.zig");
 const quest2 = @import("quest2.zig");
 const quest3 = @import("quest3.zig");
+const quest4 = @import("quest4.zig");
 const util = @import("util.zig");
 
 pub fn main() !void {
@@ -54,6 +55,11 @@ pub fn main() !void {
         }
         if (std.mem.eql(u8, part, "3")) {
             std.debug.print("{d}", .{try quest3.answer3(lines)});
+        }
+    }
+    if (std.mem.eql(u8, quest, "quest4")) {
+        if (std.mem.eql(u8, part, "1")) {
+            std.debug.print("{d}", .{quest4.answer1(lines)});
         }
     }
 }
