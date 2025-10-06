@@ -32,7 +32,7 @@ fn dig(lines: []u8, next_lines: []u8, directions: []const util.Direction) u32 {
 }
 
 pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
-    const initial = std.mem.count(u8, lines, &[_]u8{'#'});
+    const initial = std.mem.count(u8, lines, "#");
 
     var total = initial;
     var holes_dug = initial;

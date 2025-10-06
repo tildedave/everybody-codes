@@ -147,7 +147,7 @@ pub fn createGrid(lines: []const u8) Grid {
     return Grid{
         .lines = lines,
         .width = std.mem.indexOfScalar(u8, lines, '\n').? + 1,
-        .height = std.mem.count(u8, lines, &[_]u8{'\n'}),
+        .height = std.mem.count(u8, lines, "\n"),
     };
 }
 
