@@ -21,7 +21,7 @@ fn parseLists(lines: []const u8) ![4]std.DoublyLinkedList {
         var line_it = std.mem.splitScalar(u8, line, ' ');
         for (0..4) |idx| {
             const num_str = line_it.next().?;
-            const result = try std.fmt.parseInt(u8, num_str, 10);
+            const result = try std.fmt.parseInt(u32, num_str, 10);
             var node = try allocator.create(NodeU32);
             node.data = result;
             column_lists[idx].append(&node.node);
@@ -67,11 +67,11 @@ fn runClapper(column_lists: *[4]std.DoublyLinkedList, curr_column: u8) void {
     }
 }
 
-fn bigNumber(column_lists: *const [4]std.DoublyLinkedList) u32 {
-    var num: u32 = 0;
+fn bigNumber(column_lists: *const [4]std.DoublyLinkedList) u64 {
+    var num: u64 = 0;
     for (0..4) |i| {
         const node: *NodeU32 = @fieldParentPtr("node", column_lists[i].first.?);
-        const modulus: u8 = if (10 <= node.data and node.data < 100) 100 else 10;
+        const modulus: u64 = if (1000 <= node.data) 10000 else if (10 <= node.data) 100 else 10;
         num = (num * modulus) + node.data;
     }
 
@@ -84,6 +84,11 @@ test "bigNumber with two digits" {
 
     lists = try parseLists("10 10 10 10\n");
     try expectEqual(10101010, bigNumber(&lists));
+}
+
+test "bigNumber with four digits" {
+    var lists = try parseLists("1005 1009 1008 8056\n");
+    try expectEqual(1005100910088056, bigNumber(&lists));
 }
 
 fn printColumn(column: *const std.DoublyLinkedList) void {
@@ -99,7 +104,7 @@ const ClappingIterator = struct {
     column_lists: [4]std.DoublyLinkedList,
     idx: u8,
 
-    pub fn next(self: *ClappingIterator) u32 {
+    pub fn next(self: *ClappingIterator) u64 {
         runClapper(&self.column_lists, self.idx);
         self.idx = (self.idx + 1) % 4;
         return bigNumber(&self.column_lists);
@@ -113,7 +118,7 @@ fn createClappingIterator(lines: []const u8) !ClappingIterator {
     };
 }
 
-pub fn answer1(lines: []const u8, n: u32) !u32 {
+pub fn answer1(lines: []const u8, n: u32) !u64 {
     var it = try createClappingIterator(lines);
     for (0..n - 1) |_| {
         _ = it.next();
@@ -149,7 +154,7 @@ test "given example" {
 }
 
 pub fn answer2(lines: []const u8) !u64 {
-    var map = std.AutoHashMap(u32, u64).init(
+    var map = std.AutoHashMap(u64, u64).init(
         allocator,
     );
     defer map.deinit();
