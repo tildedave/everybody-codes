@@ -21,13 +21,13 @@ pub fn main() !void {
     if (std.mem.eql(u8, quest, "quest1")) {
         const line = splits.first();
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}", .{quest1.answer1(line)});
+            std.debug.print("{d}\n", .{quest1.answer1(line)});
         }
         if (std.mem.eql(u8, part, "2")) {
-            std.debug.print("{d}", .{quest1.answer2(line)});
+            std.debug.print("{d}\n", .{quest1.answer2(line)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}", .{quest1.answer3(line)});
+            std.debug.print("{d}\n", .{quest1.answer3(line)});
         }
     }
 
@@ -40,35 +40,38 @@ pub fn main() !void {
 
         if (std.mem.eql(u8, part, "1")) {
             const line = splits.next().?;
-            std.debug.print("{d}", .{quest2.answer1(words, line)});
+            std.debug.print("{d}\n", .{quest2.answer1(words, line)});
         }
         if (std.mem.eql(u8, part, "2")) {
-            std.debug.print("{d}", .{quest2.answer2(words, splits)});
+            std.debug.print("{d}\n", .{quest2.answer2(words, splits)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}", .{quest2.answer3(words, lines[util.nthIndexOfScalar(u8, lines, '\n', 1).? + 1 ..])});
+            std.debug.print("{d}\n", .{quest2.answer3(words, lines[util.nthIndexOfScalar(u8, lines, '\n', 1).? + 1 ..])});
         }
     }
 
     if (std.mem.eql(u8, quest, "quest3")) {
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}", .{try quest3.answer1(lines)});
+            std.debug.print("{d}\n", .{try quest3.answer1(lines)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}", .{try quest3.answer3(lines)});
+            std.debug.print("{d}\n", .{try quest3.answer3(lines)});
         }
     }
     if (std.mem.eql(u8, quest, "quest4")) {
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}", .{quest4.answer1(lines)});
+            std.debug.print("{d}\n", .{quest4.answer1(lines)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}", .{quest4.answer3(lines)});
+            std.debug.print("{d}\n", .{quest4.answer3(lines)});
         }
     }
     if (std.mem.eql(u8, quest, "quest5")) {
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{s}", .{quest5.answer1(lines)});
+            std.debug.print("{d}\n", .{try quest5.answer1(lines, 10)});
+        }
+        if (std.mem.eql(u8, part, "2")) {
+            std.debug.print("{d}\n", .{try quest5.answer2(lines)});
         }
     }
 }
