@@ -30,8 +30,9 @@ fn parseLists(lines: []const u8) ![4]std.DoublyLinkedList {
     return column_lists;
 }
 
-fn runClapper(column_lists: *[4]std.DoublyLinkedList, curr_column: u8) void {
+fn runClapper(column_lists: *[4]std.DoublyLinkedList, column_lengths: *[4]usize, curr_column: u8) void {
     const node = column_lists[curr_column].popFirst().?;
+    column_lengths[curr_column] -= 1;
     const clapper_node: *NodeU32 = @fieldParentPtr("node", node);
     const clapper_value = clapper_node.data;
 
@@ -40,6 +41,8 @@ fn runClapper(column_lists: *[4]std.DoublyLinkedList, curr_column: u8) void {
     var curr_dancer = column_lists[next_column].first.?;
     var clap_num: u32 = 1;
     var left: bool = true;
+
+    // naive; we should be able to make this smarter
     while (clap_num != clapper_value) {
         const next_dancer = if (left) curr_dancer.next else curr_dancer.prev;
         if (next_dancer == null) {
@@ -65,6 +68,7 @@ fn runClapper(column_lists: *[4]std.DoublyLinkedList, curr_column: u8) void {
             column_lists[next_column].insertAfter(curr_dancer, node);
         }
     }
+    column_lengths[next_column] += 1;
 }
 
 fn bigNumber(column_lists: *const [4]std.DoublyLinkedList) u64 {
@@ -100,20 +104,31 @@ fn printColumn(column: *const std.DoublyLinkedList) void {
     std.debug.print("\n", .{});
 }
 
+fn calculateColumnLengths(column_lists: [4]std.DoublyLinkedList) [4]usize {
+    var result = [4]usize{ 0, 0, 0, 0 };
+    for (0..4) |i| {
+        result[i] = column_lists[i].len();
+    }
+    return result;
+}
+
 const ClappingIterator = struct {
     column_lists: [4]std.DoublyLinkedList,
+    column_lengths: [4]usize,
     idx: u8,
 
     pub fn next(self: *ClappingIterator) u64 {
-        runClapper(&self.column_lists, self.idx);
+        runClapper(&self.column_lists, &self.column_lengths, self.idx);
         self.idx = (self.idx + 1) % 4;
         return bigNumber(&self.column_lists);
     }
 };
 
 fn createClappingIterator(lines: []const u8) !ClappingIterator {
+    const column_lists = try parseLists(lines);
     return ClappingIterator{
-        .column_lists = try parseLists(lines),
+        .column_lists = column_lists,
+        .column_lengths = calculateColumnLengths(column_lists),
         .idx = 0,
     };
 }
