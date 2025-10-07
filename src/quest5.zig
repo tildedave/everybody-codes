@@ -34,7 +34,6 @@ fn runClapper(column_lists: *[4]std.DoublyLinkedList, column_lengths: *[4]usize,
     const node = column_lists[curr_column].popFirst().?;
     column_lengths[curr_column] -= 1;
     const clapper_node: *NodeU32 = @fieldParentPtr("node", node);
-    const clapper_value = clapper_node.data;
 
     const next_column = (curr_column + 1) % 4;
 
@@ -42,7 +41,11 @@ fn runClapper(column_lists: *[4]std.DoublyLinkedList, column_lengths: *[4]usize,
     var clap_num: u32 = 1;
     var left: bool = true;
 
-    // naive; we should be able to make this smarter
+    // skip all the roundabout until the end
+    var clapper_value = clapper_node.data % (2 * column_lengths[next_column]);
+    if (clapper_value == 0) {
+        clapper_value = 2 * column_lengths[next_column];
+    }
     while (clap_num != clapper_value) {
         const next_dancer = if (left) curr_dancer.next else curr_dancer.prev;
         if (next_dancer == null) {
@@ -122,6 +125,47 @@ const ClappingIterator = struct {
         self.idx = (self.idx + 1) % 4;
         return bigNumber(&self.column_lists);
     }
+
+    pub fn str(self: *ClappingIterator) ![]const u8 {
+        const first: *NodeU32 = @fieldParentPtr("node", self.column_lists[0].first.?);
+        const first_num = first.data;
+
+        const num_capacity: u32 = if (first_num >= 1000) 4 else if (first_num >= 10) 2 else 1;
+        const longest_length = @max(self.column_lengths[0], self.column_lengths[1], self.column_lengths[2], self.column_lengths[3]);
+        var list = try std.ArrayList(u8).initCapacity(allocator, (num_capacity * 4 + 5) * longest_length);
+
+        var nodes = [4]?*std.DoublyLinkedList.Node{
+            self.column_lists[0].first,
+            self.column_lists[1].first,
+            self.column_lists[2].first,
+            self.column_lists[3].first,
+        };
+
+        const list_writer = list.writer(allocator);
+        for (0..longest_length) |_| {
+            var wrote_once = false;
+
+            for (0..4) |k| {
+                if (nodes[k] != null) {
+                    const node: *NodeU32 = @fieldParentPtr("node", nodes[k].?);
+                    try std.fmt.format(list_writer, "{d} ", .{node.data});
+                    nodes[k] = nodes[k].?.next;
+                    wrote_once = true;
+                } else {
+                    for (0..num_capacity) |_| {
+                        try std.fmt.format(list_writer, " ", .{});
+                    }
+                }
+            }
+            if (!wrote_once) {
+                break;
+            } else {
+                try std.fmt.format(list_writer, "\n", .{});
+            }
+        }
+
+        return list.items;
+    }
 };
 
 fn createClappingIterator(lines: []const u8) !ClappingIterator {
@@ -188,7 +232,6 @@ pub fn answer2(lines: []const u8) !u64 {
             try map.put(num, 1);
         }
         round += 1;
-        // std.debug.print("round {d} num {d}\n", .{ round, num });
     }
 
     return 0;
@@ -197,4 +240,48 @@ pub fn answer2(lines: []const u8) !u64 {
 test "given example - part 2" {
     const lines = "2 3 4 5\n6 7 8 9\n";
     try expectEqual(50877075, answer2(lines));
+}
+
+fn highestNumber(lines: []const u8) !u64 {
+    // detecting loops - in Clojure I would just turn the current status
+    // of the dance into a string, then find the point where it back "the same"
+    // we can do something similar for Zig but it will be awful
+    // I suppose it is awful time
+
+    var i: u32 = 0;
+    var map = std.StringHashMap(u32).init(allocator);
+    defer map.deinit();
+
+    var num_map = std.AutoHashMap(usize, u64).init(allocator);
+    defer num_map.deinit();
+
+    var it = try createClappingIterator(lines);
+    while (true) {
+        const num = it.next();
+        const s = try it.str();
+        // defer allocator.free(s);
+
+        if (map.contains(s)) {
+            const start = map.get(s).?;
+            std.debug.print("loop; started {d}, now {d}\n", .{ start, i });
+
+            var highest: u64 = 0;
+            for (start..i) |n| {
+                highest = @max(num_map.get(n).?, highest);
+            }
+            return highest;
+        }
+        try map.put(s, i);
+        try num_map.put(i, num);
+        i += 1;
+    }
+}
+
+pub fn answer3(lines: []const u8) !u64 {
+    return highestNumber(lines);
+}
+
+test "given example - part 3" {
+    const lines = "2 3 4 5\n6 7 8 9\n";
+    try expectEqual(6584, highestNumber(lines) catch null);
 }
