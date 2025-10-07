@@ -142,6 +142,8 @@ const ClappingIterator = struct {
         };
 
         const list_writer = list.writer(allocator);
+
+        try std.fmt.format(list_writer, "idx: {d}\n", .{self.idx});
         for (0..longest_length) |_| {
             var wrote_once = false;
 
@@ -152,7 +154,7 @@ const ClappingIterator = struct {
                     nodes[k] = nodes[k].?.next;
                     wrote_once = true;
                 } else {
-                    for (0..num_capacity) |_| {
+                    for (0..num_capacity + 1) |_| {
                         try std.fmt.format(list_writer, " ", .{});
                     }
                 }
@@ -257,16 +259,18 @@ fn highestNumber(lines: []const u8) !u64 {
 
     var it = try createClappingIterator(lines);
     while (true) {
+        // std.debug.print("{s}\n", .{try it.str()});
+
         const num = it.next();
         const s = try it.str();
         // defer allocator.free(s);
 
         if (map.contains(s)) {
             const start = map.get(s).?;
-            std.debug.print("loop; started {d}, now {d}\n", .{ start, i });
+            std.debug.print("loop; started {d}, now {d}\n{s}\n", .{ start, i, s });
 
             var highest: u64 = 0;
-            for (start..i) |n| {
+            for (0..i) |n| {
                 highest = @max(num_map.get(n).?, highest);
             }
             return highest;
