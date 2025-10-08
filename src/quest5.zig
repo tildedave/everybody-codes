@@ -153,6 +153,7 @@ const ClappingIterator = struct {
         const num_capacity: u32 = if (first_num >= 1000) 4 else if (first_num >= 10) 2 else 1;
         const longest_length = @max(self.column_lengths[0], self.column_lengths[1], self.column_lengths[2], self.column_lengths[3]);
         var list = try std.ArrayList(u8).initCapacity(allocator, (num_capacity * 4 + 5) * longest_length);
+        defer list.deinit(allocator);
 
         var nodes = [4]?*std.DoublyLinkedList.Node{
             self.column_lists[0].first,
@@ -186,7 +187,9 @@ const ClappingIterator = struct {
             }
         }
 
-        return list.items;
+        const slice = try allocator.alloc(u8, list.items.len);
+        @memmove(slice, list.items);
+        return slice;
     }
 
     pub fn deinit(self: *ClappingIterator, allocator: std.mem.Allocator) void {
@@ -286,6 +289,8 @@ fn highestNumber(lines: []const u8, allocator: std.mem.Allocator) !u64 {
     defer num_map.deinit();
 
     var it = try createClappingIterator(lines, allocator);
+    defer it.deinit(allocator);
+
     while (true) {
         const num = it.next();
         const s = try it.str(allocator);
@@ -293,11 +298,18 @@ fn highestNumber(lines: []const u8, allocator: std.mem.Allocator) !u64 {
         if (map.contains(s)) {
             const start = map.get(s).?;
             std.debug.print("loop; started {d}, now {d}\n{s}\n", .{ start, i, s });
+            allocator.free(s);
 
             var highest: u64 = 0;
             for (0..i) |n| {
                 highest = @max(num_map.get(n).?, highest);
             }
+
+            var key_it = map.keyIterator();
+            while (key_it.next()) |m| {
+                allocator.free(m.*);
+            }
+
             return highest;
         }
         try map.put(s, i);
