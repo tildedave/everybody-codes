@@ -1,15 +1,15 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
-var debug_allocator = std.heap.DebugAllocator(.{}){};
-const allocator = debug_allocator.allocator();
+// var debug_allocator = std.heap.DebugAllocator(.{}){};
+// const allocator = debug_allocator.allocator();
 
 const NodeU32 = struct {
     data: u32,
     node: std.DoublyLinkedList.Node = .{},
 };
 
-fn parseLists(lines: []const u8) ![4]std.DoublyLinkedList {
+fn parseLists(lines: []const u8, allocator: std.mem.Allocator) ![4]std.DoublyLinkedList {
     var column_lists: [4]std.DoublyLinkedList = .{ .{}, .{}, .{}, .{} };
 
     var lines_it = std.mem.splitScalar(u8, lines, '\n');
@@ -85,16 +85,36 @@ fn bigNumber(column_lists: *const [4]std.DoublyLinkedList) u64 {
     return num;
 }
 
-test "bigNumber with two digits" {
-    var lists = try parseLists("24 79 70 95\n");
-    try expectEqual(24797095, bigNumber(&lists));
+fn dealloc_list(l: *std.DoublyLinkedList, allocator: std.mem.Allocator) void {
+    while (l.first != null) {
+        const node = l.first.?;
+        l.remove(node);
+        const n: *NodeU32 = @fieldParentPtr("node", node);
+        defer allocator.destroy(n);
+    }
+}
 
-    lists = try parseLists("10 10 10 10\n");
-    try expectEqual(10101010, bigNumber(&lists));
+fn dealloc_lists(l: *[4]std.DoublyLinkedList, allocator: std.mem.Allocator) void {
+    dealloc_list(&l[0], allocator);
+    dealloc_list(&l[1], allocator);
+    dealloc_list(&l[2], allocator);
+    dealloc_list(&l[3], allocator);
+}
+
+test "bigNumber with two digits" {
+    var lists = try parseLists("24 79 70 95\n", std.testing.allocator);
+    try expectEqual(24797095, bigNumber(&lists));
+    defer dealloc_lists(&lists, std.testing.allocator);
+
+    var lists2 = try parseLists("10 10 10 10\n", std.testing.allocator);
+    try expectEqual(10101010, bigNumber(&lists2));
+    defer dealloc_lists(&lists2, std.testing.allocator);
 }
 
 test "bigNumber with four digits" {
-    var lists = try parseLists("1005 1009 1008 8056\n");
+    var lists = try parseLists("1005 1009 1008 8056\n", std.testing.allocator);
+    defer dealloc_lists(&lists, std.testing.allocator);
+
     try expectEqual(1005100910088056, bigNumber(&lists));
 }
 
@@ -126,7 +146,7 @@ const ClappingIterator = struct {
         return bigNumber(&self.column_lists);
     }
 
-    pub fn str(self: *ClappingIterator) ![]const u8 {
+    pub fn str(self: *ClappingIterator, allocator: std.mem.Allocator) ![]const u8 {
         const first: *NodeU32 = @fieldParentPtr("node", self.column_lists[0].first.?);
         const first_num = first.data;
 
@@ -168,10 +188,14 @@ const ClappingIterator = struct {
 
         return list.items;
     }
+
+    pub fn deinit(self: *ClappingIterator, allocator: std.mem.Allocator) void {
+        dealloc_lists(&self.column_lists, allocator);
+    }
 };
 
-fn createClappingIterator(lines: []const u8) !ClappingIterator {
-    const column_lists = try parseLists(lines);
+fn createClappingIterator(lines: []const u8, allocator: std.mem.Allocator) !ClappingIterator {
+    const column_lists = try parseLists(lines, allocator);
     return ClappingIterator{
         .column_lists = column_lists,
         .column_lengths = calculateColumnLengths(column_lists),
@@ -180,7 +204,7 @@ fn createClappingIterator(lines: []const u8) !ClappingIterator {
 }
 
 pub fn answer1(lines: []const u8, n: u32) !u64 {
-    var it = try createClappingIterator(lines);
+    var it = try createClappingIterator(lines, std.heap.page_allocator);
     for (0..n - 1) |_| {
         _ = it.next();
     }
@@ -189,14 +213,17 @@ pub fn answer1(lines: []const u8, n: u32) !u64 {
 
 test "given example" {
     const lines = "2 3 4 5\n3 4 5 2\n4 5 2 3\n5 2 3 4\n";
-    var column_lists = try parseLists(lines);
+    var column_lists = try parseLists(lines, std.testing.allocator);
+    defer dealloc_lists(&column_lists, std.testing.allocator);
+
     // not clear how to dealloc the linked lists (for now)
     printColumn(&column_lists[0]);
     printColumn(&column_lists[1]);
     printColumn(&column_lists[2]);
     printColumn(&column_lists[3]);
 
-    var it = try createClappingIterator(lines);
+    var it = try createClappingIterator(lines, std.testing.allocator);
+    defer it.deinit(std.testing.allocator);
     try expectEqual(3345, it.next());
     try expectEqual(3245, it.next());
     try expectEqual(3255, it.next());
@@ -214,13 +241,14 @@ test "given example" {
     try expectEqual(2323, answer1(lines, 10));
 }
 
-pub fn answer2(lines: []const u8) !u64 {
+pub fn answer2(lines: []const u8, allocator: std.mem.Allocator) !u64 {
     var map = std.AutoHashMap(u64, u64).init(
-        allocator,
+        std.heap.page_allocator,
     );
     defer map.deinit();
 
-    var it = try createClappingIterator(lines);
+    var it = try createClappingIterator(lines, allocator);
+    defer it.deinit(allocator);
     var round: u64 = 1;
     while (true) {
         const num = it.next();
@@ -241,10 +269,10 @@ pub fn answer2(lines: []const u8) !u64 {
 
 test "given example - part 2" {
     const lines = "2 3 4 5\n6 7 8 9\n";
-    try expectEqual(50877075, answer2(lines));
+    try expectEqual(50877075, answer2(lines, std.testing.allocator));
 }
 
-fn highestNumber(lines: []const u8) !u64 {
+fn highestNumber(lines: []const u8, allocator: std.mem.Allocator) !u64 {
     // detecting loops - in Clojure I would just turn the current status
     // of the dance into a string, then find the point where it back "the same"
     // we can do something similar for Zig but it will be awful
@@ -257,13 +285,10 @@ fn highestNumber(lines: []const u8) !u64 {
     var num_map = std.AutoHashMap(usize, u64).init(allocator);
     defer num_map.deinit();
 
-    var it = try createClappingIterator(lines);
+    var it = try createClappingIterator(lines, allocator);
     while (true) {
-        // std.debug.print("{s}\n", .{try it.str()});
-
         const num = it.next();
-        const s = try it.str();
-        // defer allocator.free(s);
+        const s = try it.str(allocator);
 
         if (map.contains(s)) {
             const start = map.get(s).?;
@@ -281,11 +306,11 @@ fn highestNumber(lines: []const u8) !u64 {
     }
 }
 
-pub fn answer3(lines: []const u8) !u64 {
-    return highestNumber(lines);
+pub fn answer3(lines: []const u8, allocator: std.mem.Allocator) !u64 {
+    return highestNumber(lines, allocator);
 }
 
 test "given example - part 3" {
     const lines = "2 3 4 5\n6 7 8 9\n";
-    try expectEqual(6584, highestNumber(lines) catch null);
+    try expectEqual(6584, highestNumber(lines, std.testing.allocator) catch null);
 }
