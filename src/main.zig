@@ -4,6 +4,7 @@ const quest2 = @import("quest2.zig");
 const quest3 = @import("quest3.zig");
 const quest4 = @import("quest4.zig");
 const quest5 = @import("quest5.zig");
+const quest6 = @import("quest6.zig");
 const util = @import("util.zig");
 
 pub fn main() !void {
@@ -14,8 +15,11 @@ pub fn main() !void {
     const part = iter.next().?;
     const input_file_name = iter.next().?;
     var input_file = try std.fs.cwd().openFile(input_file_name, .{});
+    const allocator = std.heap.page_allocator;
     defer input_file.close();
-    const lines = try input_file.readToEndAlloc(std.heap.page_allocator, 2_000_000);
+    const lines = try input_file.readToEndAlloc(allocator, 2_000_000);
+    defer allocator.free(lines);
+
     var splits = std.mem.splitScalar(u8, lines, '\n');
 
     if (std.mem.eql(u8, quest, "quest1")) {
@@ -68,13 +72,18 @@ pub fn main() !void {
     }
     if (std.mem.eql(u8, quest, "quest5")) {
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}\n", .{try quest5.answer1(lines, 10)});
+            std.debug.print("{d}\n", .{try quest5.answer1(lines, 10, allocator)});
         }
         if (std.mem.eql(u8, part, "2")) {
-            std.debug.print("{d}\n", .{try quest5.answer2(lines)});
+            std.debug.print("{d}\n", .{try quest5.answer2(lines, allocator)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}\n", .{try quest5.answer3(lines)});
+            std.debug.print("{d}\n", .{try quest5.answer3(lines, allocator)});
+        }
+    }
+    if (std.mem.eql(u8, quest, "quest6")) {
+        if (std.mem.eql(u8, part, "1")) {
+            std.debug.print("{s}\n", .{try quest6.answer1(allocator, lines)});
         }
     }
 }

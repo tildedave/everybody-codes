@@ -206,8 +206,9 @@ fn createClappingIterator(lines: []const u8, allocator: std.mem.Allocator) !Clap
     };
 }
 
-pub fn answer1(lines: []const u8, n: u32) !u64 {
-    var it = try createClappingIterator(lines, std.heap.page_allocator);
+pub fn answer1(lines: []const u8, n: u32, allocator: std.mem.Allocator) !u64 {
+    var it = try createClappingIterator(lines, allocator);
+    defer it.deinit(allocator);
     for (0..n - 1) |_| {
         _ = it.next();
     }
@@ -225,8 +226,10 @@ test "given example" {
     printColumn(&column_lists[2]);
     printColumn(&column_lists[3]);
 
-    var it = try createClappingIterator(lines, std.testing.allocator);
-    defer it.deinit(std.testing.allocator);
+    const allocator = std.testing.allocator;
+
+    var it = try createClappingIterator(lines, allocator);
+    defer it.deinit(allocator);
     try expectEqual(3345, it.next());
     try expectEqual(3245, it.next());
     try expectEqual(3255, it.next());
@@ -238,10 +241,10 @@ test "given example" {
     try expectEqual(2423, it.next());
     try expectEqual(2323, it.next());
 
-    try expectEqual(3345, answer1(lines, 1));
-    try expectEqual(3245, answer1(lines, 2));
-    try expectEqual(3255, answer1(lines, 3));
-    try expectEqual(2323, answer1(lines, 10));
+    try expectEqual(3345, answer1(lines, 1, allocator));
+    try expectEqual(3245, answer1(lines, 2, allocator));
+    try expectEqual(3255, answer1(lines, 3, allocator));
+    try expectEqual(2323, answer1(lines, 10, allocator));
 }
 
 pub fn answer2(lines: []const u8, allocator: std.mem.Allocator) !u64 {
