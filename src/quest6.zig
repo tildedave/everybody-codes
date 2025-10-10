@@ -15,7 +15,6 @@ fn parseLines(lines: []const u8, allocator: std.mem.Allocator) !std.StringHashMa
         var list = try std.ArrayList([]const u8).initCapacity(allocator, 0);
 
         while (comma_it.next()) |dest| {
-            std.debug.print("{s} --> {s}\n", .{ source, dest });
             try list.append(allocator, dest);
         }
         try map.put(source, list);
@@ -46,12 +45,12 @@ fn getPath(allocator: std.mem.Allocator, node: []const u8, search_map: *std.Stri
 
     var curr: ?[]const u8 = node;
     var len: u32 = 0;
-    while (curr != null) {
+    while (curr) |name| {
         if (abbrev) {
-            try std.fmt.format(writer, "{c}", .{curr.?[0]});
+            try std.fmt.format(writer, "{c}", .{name[0]});
         } else {
-            for (0..curr.?.len) |i| {
-                try std.fmt.format(writer, "{c}", .{curr.?[curr.?.len - 1 - i]});
+            for (0..name.len) |i| {
+                try std.fmt.format(writer, "{c}", .{name[name.len - 1 - i]});
             }
         }
         curr = search_map.get(curr.?).?.pred;
@@ -139,9 +138,9 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, abbrev: bool) ![]
     var key_it = paths.keyIterator();
     var result: ?[]const u8 = null;
     while (key_it.next()) |k| {
-        const path = paths.get(k.*);
-        if (path.?[1] == unique_path_length) {
-            const p = try getPath(allocator, path.?[0], &search_map, abbrev);
+        const path = paths.get(k.*).?;
+        if (path[1] == unique_path_length) {
+            const p = try getPath(allocator, path[0], &search_map, abbrev);
             result = p[0];
             break;
         }
@@ -156,4 +155,12 @@ test "example" {
     defer allocator.free(result);
 
     try expectEqualStrings("RRB@", result);
+}
+
+test "example - abbreviation" {
+    const allocator = std.testing.allocator;
+    const result = try answer(allocator, "RR:A,B,C\nA:D,E\nB:F,@\nC:G,H\nD:@\nE:@\nF:@\nG:@\nH:@\n", true);
+    defer allocator.free(result);
+
+    try expectEqualStrings("RB@", result);
 }
