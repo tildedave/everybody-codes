@@ -84,6 +84,7 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, abbrev: bool) ![]
         while (key_it.next()) |p| {
             allocator.free(p.*);
         }
+        paths.deinit();
     }
 
     while (stack.items.len > 0) {
