@@ -252,17 +252,17 @@ test "permutationCmp" {
     try expectEqual(1, permutationCmp('+', '-'));
 }
 
-fn generatePermutations() u32 {
-    var count: u32 = 0;
+fn generatePermutations(ctx: anytype, processFn: *const fn (@TypeOf(ctx), str: []const u8) void) void {
+    // var count: u32 = 0;
     var l = "---===+++++".*;
 
-    std.debug.print("{s}\n", .{l});
-    count += 1;
+    // std.debug.print("{s}\n", .{l});
+    processFn(ctx, &l);
+    // count += 1;
     while (true) {
         var i: usize = l.len - 2;
         var found: bool = true;
         while (i >= 0 and permutationCmp(l[i], l[i + 1]) >= 0) {
-            std.debug.print("{d} {c} {c} {d}\n", .{ i, l[i], l[i + 1], permutationCmp(l[i], l[i + 1]) });
             if (i == 0) {
                 found = false;
                 break;
@@ -291,13 +291,24 @@ fn generatePermutations() u32 {
             next -= 1;
         }
 
-        std.debug.print("{s}\n", .{l});
-        count += 1;
+        // std.debug.print("{s}\n", .{l});
+        processFn(ctx, &l);
+        // count += 1;
     }
+}
 
-    return count;
+const Counter = struct {
+    total: u32,
+};
+
+fn countFn(ctx: *Counter, str: []const u8) void {
+    ctx.total += 1;
+    if (str.len > 0) {}
+    // std.debug.print("{s}\n", .{str});
 }
 
 test "generatePermutations" {
-    try expectEqual(9240, generatePermutations());
+    var v: Counter = .{ .total = 0 };
+    generatePermutations(&v, &countFn);
+    try expectEqual(9240, v.total);
 }
