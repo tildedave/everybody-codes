@@ -1,4 +1,6 @@
 const std = @import("std");
+const util = @import("util.zig");
+const Direction = util.Direction;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const SortContext = struct {
@@ -10,45 +12,42 @@ fn ltFn(ctx: SortContext, lhs: []const u8, rhs: []const u8) bool {
 }
 
 pub fn parseTrack(allocator: std.mem.Allocator, track_lines: []const u8) ![]const u8 {
-    const newline_idx = std.mem.indexOf(u8, track_lines, "\n").?;
-    const newline_count = std.mem.count(u8, track_lines, "\n");
+    const grid = util.createGrid(track_lines);
 
     var track = try std.ArrayList(u8).initCapacity(allocator, 0);
     defer track.deinit(allocator);
 
-    var x: usize = 0;
-    var y: usize = 0;
-    var dx: i8 = 1;
-    var dy: i8 = 0;
+    var direction: Direction = Direction.right;
+    var idx: usize = 1;
 
     while (true) {
-        if (x == newline_idx - 1 and dx == 1) {
-            dx = 0;
-            dy = 1;
-        } else if (y == newline_count - 1 and dy == 1) {
-            dx = -1;
-            dy = 0;
-        } else if (x == 0 and dx == -1) {
-            dx = 0;
-            dy = -1;
-        }
+        try track.append(allocator, track_lines[idx]);
+        const next = util.walk(grid, idx, direction, .{});
+        if (next == null or track_lines[next.?] == ' ') {
+            if (direction == Direction.right or direction == Direction.left) {
+                const next_up = util.walk(grid, idx, Direction.up, .{});
+                const next_down = util.walk(grid, idx, Direction.down, .{});
 
-        if (dx == -1) {
-            x -= 1;
-        }
-        if (dx == 1) {
-            x += 1;
-        }
-        if (dy == -1) {
-            y -= 1;
-        }
-        if (dy == 1) {
-            y += 1;
-        }
+                if (next_up != null and track_lines[next_up.?] != ' ') {
+                    direction = Direction.up;
+                } else if (next_down != null and track_lines[next_down.?] != ' ') {
+                    direction = Direction.down;
+                }
+            } else if (direction == Direction.up or direction == Direction.down) {
+                const next_left = util.walk(grid, idx, Direction.left, .{});
+                const next_right = util.walk(grid, idx, Direction.right, .{});
 
-        try track.append(allocator, track_lines[y * (newline_idx + 1) + x]);
+                if (next_left != null and track_lines[next_left.?] != ' ') {
+                    direction = Direction.left;
+                } else if (next_right != null and track_lines[next_right.?] != ' ') {
+                    direction = Direction.right;
+                }
+            }
+        }
+        idx = util.walk(grid, idx, direction, .{}).?;
 
-        if (x == 0 and y == 0 and dx == 0 and dy == -1) {
+        if (idx == 0) {
+            try track.append(allocator, track_lines[idx]);
             break;
         }
     }
@@ -138,7 +137,6 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8, numLaps: u32) ![
     const track_lines = "S-=++=-==++=++=-=+=-=+=+=--=-=++=-==++=-+=-=+=-=+=+=++=-+==++=++=-=-=--\n-                                                                     -\n=                                                                     =\n+                                                                     +\n=                                                                     +\n+                                                                     =\n=                                                                     =\n-                                                                     -\n--==++++==+=+++-=+=-=+=-+-=+-=+-=+=-=+=--=+++=++=+++==++==--=+=++==+++-\n";
     const track = try parseTrack(allocator, track_lines);
     defer allocator.free(track);
-    std.debug.print("{s}\n", .{track});
 
     return answer(allocator, lines, track, numLaps);
 }
@@ -176,3 +174,17 @@ test "given example (part 2)" {
 
     try expectEqualStrings("DCBA", result);
 }
+
+test "more difficult track parsing" {
+    const track_lines = "S+=  =-=\n- =+-+ +\n+      +\n=+=-+--=\n";
+    const allocator = std.testing.allocator;
+
+    const result = try parseTrack(allocator, track_lines);
+    defer allocator.free(result);
+
+    try expectEqualStrings("+==+-+=-=++=--+-=+=+-S", result);
+}
+
+// 462 * 20 = 9240 possibilities of valid action plans
+// brute forceable for sure
+// writing brute force logic is annoying
