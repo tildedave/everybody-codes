@@ -206,7 +206,7 @@ test "more difficult track parsing" {
 
 // We'll say - < = < +
 
-fn permutationCmp(ch1: u8, ch2: u8) i8 {
+fn cmpOperator(ch1: u8, ch2: u8) i8 {
     if (ch1 == ch2) {
         return 0;
     }
@@ -238,77 +238,16 @@ fn permutationCmp(ch1: u8, ch2: u8) i8 {
     unreachable;
 }
 
-test "permutationCmp" {
-    try expectEqual(-1, permutationCmp('-', '='));
-    try expectEqual(-1, permutationCmp('-', '+'));
-    try expectEqual(0, permutationCmp('-', '-'));
+test "cmpOperator" {
+    try expectEqual(-1, cmpOperator('-', '='));
+    try expectEqual(-1, cmpOperator('-', '+'));
+    try expectEqual(0, cmpOperator('-', '-'));
 
-    try expectEqual(0, permutationCmp('=', '='));
-    try expectEqual(-1, permutationCmp('=', '+'));
-    try expectEqual(1, permutationCmp('=', '-'));
+    try expectEqual(0, cmpOperator('=', '='));
+    try expectEqual(-1, cmpOperator('=', '+'));
+    try expectEqual(1, cmpOperator('=', '-'));
 
-    try expectEqual(1, permutationCmp('+', '='));
-    try expectEqual(0, permutationCmp('+', '+'));
-    try expectEqual(1, permutationCmp('+', '-'));
-}
-
-fn generatePermutations(ctx: anytype, processFn: *const fn (@TypeOf(ctx), str: []const u8) void) void {
-    // var count: u32 = 0;
-    var l = "---===+++++".*;
-
-    // std.debug.print("{s}\n", .{l});
-    processFn(ctx, &l);
-    // count += 1;
-    while (true) {
-        var i: usize = l.len - 2;
-        var found: bool = true;
-        while (i >= 0 and permutationCmp(l[i], l[i + 1]) >= 0) {
-            if (i == 0) {
-                found = false;
-                break;
-            }
-            i -= 1;
-        }
-        if (!found) {
-            break;
-        }
-
-        var j = l.len - 1;
-        while (j > i and permutationCmp(l[j], l[i]) != 1) : (j -= 1) {}
-
-        var tmp: u8 = l[j];
-        l[j] = l[i];
-        l[i] = tmp;
-
-        // reverse the list after l[i+1]
-        var curr = i + 1;
-        var next = l.len - 1;
-        while (curr < next) {
-            tmp = l[curr];
-            l[curr] = l[next];
-            l[next] = tmp;
-            curr += 1;
-            next -= 1;
-        }
-
-        // std.debug.print("{s}\n", .{l});
-        processFn(ctx, &l);
-        // count += 1;
-    }
-}
-
-const Counter = struct {
-    total: u32,
-};
-
-fn countFn(ctx: *Counter, str: []const u8) void {
-    ctx.total += 1;
-    if (str.len > 0) {}
-    // std.debug.print("{s}\n", .{str});
-}
-
-test "generatePermutations" {
-    var v: Counter = .{ .total = 0 };
-    generatePermutations(&v, &countFn);
-    try expectEqual(9240, v.total);
+    try expectEqual(1, cmpOperator('+', '='));
+    try expectEqual(0, cmpOperator('+', '+'));
+    try expectEqual(1, cmpOperator('+', '-'));
 }

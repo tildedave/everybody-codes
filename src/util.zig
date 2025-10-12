@@ -312,3 +312,97 @@ test "NumberIterator" {
     try expectEqual(9, it.next());
     try expectEqual(10024, it.next());
 }
+
+fn cmpOperator(ch1: u8, ch2: u8) i8 {
+    if (ch1 == ch2) {
+        return 0;
+    }
+
+    if (ch1 == '-') {
+        if (ch2 == '+' or ch2 == '=') {
+            return -1;
+        }
+        unreachable;
+    }
+
+    if (ch1 == '=') {
+        if (ch2 == '+') {
+            return -1;
+        }
+        if (ch2 == '-') {
+            return 1;
+        }
+        unreachable;
+    }
+
+    if (ch1 == '+') {
+        if (ch2 == '=' or ch2 == '-') {
+            return 1;
+        }
+        unreachable;
+    }
+
+    unreachable;
+}
+
+fn generatePermutations(
+    comptime T: type,
+    l: []T,
+    ctx: anytype,
+    comparator: *const fn (lhs: T, rhs: T) i8,
+    processFn: *const fn (@TypeOf(ctx), str: []const T) void,
+) void {
+    processFn(ctx, l);
+
+    while (true) {
+        var i: usize = l.len - 2;
+        var found: bool = true;
+        while (i >= 0 and comparator(l[i], l[i + 1]) >= 0) {
+            if (i == 0) {
+                found = false;
+                break;
+            }
+            i -= 1;
+        }
+        if (!found) {
+            break;
+        }
+
+        var j = l.len - 1;
+        while (j > i and comparator(l[j], l[i]) != 1) : (j -= 1) {}
+
+        var tmp: T = l[j];
+        l[j] = l[i];
+        l[i] = tmp;
+
+        // reverse the list after l[i+1]
+        var curr = i + 1;
+        var next = l.len - 1;
+        while (curr < next) {
+            tmp = l[curr];
+            l[curr] = l[next];
+            l[next] = tmp;
+            curr += 1;
+            next -= 1;
+        }
+
+        processFn(ctx, l);
+    }
+}
+
+const Counter = struct {
+    total: u32,
+};
+
+fn countFn(ctx: *Counter, str: []const u8) void {
+    ctx.total += 1;
+    if (str.len > 0) {}
+    // std.debug.print("{s}\n", .{str});
+}
+
+test "generatePermutations" {
+    var v: Counter = .{ .total = 0 };
+    var l = "---===+++++".*;
+    generatePermutations(u8, &l, &v, &cmpOperator, &countFn);
+    try expectEqual(9240, v.total);
+}
