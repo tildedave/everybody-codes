@@ -1,6 +1,7 @@
 const std = @import("std");
 const util = @import("util.zig");
 const Direction = util.Direction;
+const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const SortContext = struct {
@@ -187,4 +188,116 @@ test "more difficult track parsing" {
 
 // 462 * 20 = 9240 possibilities of valid action plans
 // brute forceable for sure
-// writing brute force logic is annoying
+// writing brute force logic sure is annoying
+// we'll use a lexicographical permutation generator
+
+// https://stemhash.com/efficient-permutations-in-lexicographic-order/
+// step 1) Find the largest index i such that s[i]<s[i+1]. If we can't find such an index, it means we are at the last permutation of the sequence:
+//     From our list, i=2i=2, because the number at index 2, s[2]=3s[2]=3 is less than the number at index i+1=3i+1=3, s[3]=4s[3]=4, and i=2i=2 is the largest index that satisfies this condition.
+
+// step 2) Find the largest index j that is greater than i, such that s[i]<s[j]:
+//     Looking at our list we get j=3j=3. This satisfies our condition (s[2]=3)<(s[3]=4)(s[2]=3)<(s[3]=4)
+
+// step 3) Swap the value of s[i] with that of s[j]]:
+//     So, we swap the values at the two indices. Our list becomes: s=[1,2,4,3]s=[1,2,4,3]
+
+// step 4) Reverse the sequence from s[i+1] up to and including the last element:
+//     In our case, i=2. So, the next index i+1=3i+1=3, which is the last index of our list, therefore it stays the same. Our next permutation is s=[1,2,4,3]s=[1,2,4,3].
+
+// We'll say - < = < +
+
+fn permutationCmp(ch1: u8, ch2: u8) i8 {
+    if (ch1 == ch2) {
+        return 0;
+    }
+
+    if (ch1 == '-') {
+        if (ch2 == '+' or ch2 == '=') {
+            return -1;
+        }
+        unreachable;
+    }
+
+    if (ch1 == '=') {
+        if (ch2 == '+') {
+            return -1;
+        }
+        if (ch2 == '-') {
+            return 1;
+        }
+        unreachable;
+    }
+
+    if (ch1 == '+') {
+        if (ch2 == '=' or ch2 == '-') {
+            return 1;
+        }
+        unreachable;
+    }
+
+    unreachable;
+}
+
+test "permutationCmp" {
+    try expectEqual(-1, permutationCmp('-', '='));
+    try expectEqual(-1, permutationCmp('-', '+'));
+    try expectEqual(0, permutationCmp('-', '-'));
+
+    try expectEqual(0, permutationCmp('=', '='));
+    try expectEqual(-1, permutationCmp('=', '+'));
+    try expectEqual(1, permutationCmp('=', '-'));
+
+    try expectEqual(1, permutationCmp('+', '='));
+    try expectEqual(0, permutationCmp('+', '+'));
+    try expectEqual(1, permutationCmp('+', '-'));
+}
+
+fn generatePermutations() u32 {
+    var count: u32 = 0;
+    var l = "---===+++++".*;
+
+    std.debug.print("{s}\n", .{l});
+    count += 1;
+    while (true) {
+        var i: usize = l.len - 2;
+        var found: bool = true;
+        while (i >= 0 and permutationCmp(l[i], l[i + 1]) >= 0) {
+            std.debug.print("{d} {c} {c} {d}\n", .{ i, l[i], l[i + 1], permutationCmp(l[i], l[i + 1]) });
+            if (i == 0) {
+                found = false;
+                break;
+            }
+            i -= 1;
+        }
+        if (!found) {
+            break;
+        }
+
+        var j = l.len - 1;
+        while (j > i and permutationCmp(l[j], l[i]) != 1) : (j -= 1) {}
+
+        var tmp: u8 = l[j];
+        l[j] = l[i];
+        l[i] = tmp;
+
+        // reverse the list after l[i+1]
+        var curr = i + 1;
+        var next = l.len - 1;
+        while (curr < next) {
+            tmp = l[curr];
+            l[curr] = l[next];
+            l[next] = tmp;
+            curr += 1;
+            next -= 1;
+        }
+
+        std.debug.print("{s}\n", .{l});
+        count += 1;
+    }
+
+    return count;
+}
+
+test "generatePermutations" {
+    try expectEqual(9240, generatePermutations());
+}
