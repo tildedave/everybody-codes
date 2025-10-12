@@ -1,6 +1,7 @@
 const std = @import("std");
 const util = @import("util.zig");
 const Direction = util.Direction;
+const generatePermutations = util.generatePermutations;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
@@ -58,7 +59,7 @@ pub fn parseTrack(allocator: std.mem.Allocator, track_lines: []const u8) ![]cons
     return result;
 }
 
-pub fn answer(allocator: std.mem.Allocator, lines: []const u8, track: []const u8, numLaps: u32) ![]const u8 {
+pub fn answer(allocator: std.mem.Allocator, lines: []const u8, track: []const u8, num_laps: u32) ![]const u8 {
     var s = std.StringHashMap(u32).init(allocator);
     var lines_it = std.mem.splitScalar(u8, lines, '\n');
     defer s.deinit();
@@ -74,7 +75,7 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, track: []const u8
         var round: u32 = 0;
         var track_position: usize = 0;
 
-        while (round < numLaps) {
+        while (round < num_laps) {
             const track_ch = track[track_position];
             if (track_ch == '+') {
                 score += 1;
@@ -130,16 +131,16 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, track: []const u8
     return result;
 }
 
-pub fn answer1(allocator: std.mem.Allocator, lines: []const u8, numLaps: u32) ![]const u8 {
-    return answer(allocator, lines, "S", numLaps);
+pub fn answer1(allocator: std.mem.Allocator, lines: []const u8, num_laps: u32) ![]const u8 {
+    return answer(allocator, lines, "S", num_laps);
 }
 
-pub fn answer2(allocator: std.mem.Allocator, lines: []const u8, numLaps: u32) ![]const u8 {
+pub fn answer2(allocator: std.mem.Allocator, lines: []const u8, num_laps: u32) ![]const u8 {
     const track_lines = "S-=++=-==++=++=-=+=-=+=+=--=-=++=-==++=-+=-=+=-=+=+=++=-+==++=++=-=-=--\n-                                                                     -\n=                                                                     =\n+                                                                     +\n=                                                                     +\n+                                                                     =\n=                                                                     =\n-                                                                     -\n--==++++==+=+++-=+=-=+=-+-=+-=+-=+=-=+=--=+++=++=+++==++==--=+=++==+++-\n";
     const track = try parseTrack(allocator, track_lines);
     defer allocator.free(track);
 
-    return answer(allocator, lines, track, numLaps);
+    return answer(allocator, lines, track, num_laps);
 }
 
 test "given example" {
@@ -250,4 +251,111 @@ test "cmpOperator" {
     try expectEqual(1, cmpOperator('+', '='));
     try expectEqual(0, cmpOperator('+', '+'));
     try expectEqual(1, cmpOperator('+', '-'));
+}
+
+const Counter = struct {
+    total: u32,
+};
+
+fn countFn(ctx: *Counter, str: []const u8) void {
+    ctx.total += 1;
+    if (str.len > 0) {}
+    // std.debug.print("{s}\n", .{str});
+}
+
+test "generatePermutations" {
+    var v: Counter = .{ .total = 0 };
+    var l = "---===+++++".*;
+    generatePermutations(u8, &l, &v, &cmpOperator, &countFn);
+    try expectEqual(9240, v.total);
+}
+
+const TrackContext = struct {
+    track: []const u8,
+    num_laps: u32,
+    baseline_score: u64,
+    count: u32 = 0,
+};
+
+fn runTrack(track: []const u8, num_laps: u32, strategy: []const u8) u64 {
+    var score: u32 = 10;
+    var total_power: u64 = 0;
+    var i: usize = 0;
+    var round: u32 = 0;
+    var track_position: usize = 0;
+
+    while (round < num_laps) {
+        const track_ch = track[track_position];
+        if (track_ch == '+') {
+            score += 1;
+        } else if (track_ch == '-') {
+            score -= 1;
+        } else {
+            const ch = strategy[i];
+            if (ch == '+') {
+                score += 1;
+            } else if (ch == '-') {
+                score -= 1;
+            } else if (ch == '#') {
+                score += 0;
+            }
+        }
+
+        total_power += score;
+        track_position = (track_position + 1) % track.len;
+        if (track_ch == 'S') {
+            round += 1;
+        }
+        i = (i + 1) % strategy.len;
+    }
+
+    return total_power;
+}
+
+fn processTrack(ctx: *TrackContext, strategy: []const u8) void {
+    const score = runTrack(ctx.track, ctx.num_laps, strategy);
+    if (score > ctx.baseline_score) {
+        std.debug.print("srategy {s} wins: {d}\n", .{ strategy, score });
+        ctx.count += 1;
+    }
+}
+
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u32 {
+    const track_lines = "S-=++=-==++=++=-=+=-=+=+=--=-=++=-==++=-+=-=+=-=+=+=++=-+==++=++=-=-=--\n-                                                                     -\n=                                                                     =\n+                                                                     +\n=                                                                     +\n+                                                                     =\n=                                                                     =\n-                                                                     -\n--==++++==+=+++-=+=-=+=-+-=+-=+-=+=-=+=--=+++=++=+++==++==--=+=++==+++-\n";
+    const track = try parseTrack(allocator, track_lines);
+    defer allocator.free(track);
+
+    const line = lines[0..std.mem.indexOfScalar(u8, lines, '\n').?];
+    var strategy = try std.ArrayList(u8).initCapacity(allocator, 0);
+    defer strategy.deinit(allocator);
+
+    const sep = std.mem.indexOf(u8, line, ":").?;
+    var i = sep + 1;
+    while (i < line.len) : (i += 2) {
+        try strategy.append(allocator, line[i]);
+    }
+
+    std.debug.print("{s}", .{strategy.items});
+
+    var v: TrackContext = .{ .track = track, .num_laps = 2024, .baseline_score = runTrack(track, 2024, strategy.items) };
+    var l = "---===+++++".*;
+    generatePermutations(u8, &l, &v, &cmpOperator, &processTrack);
+    std.debug.print("total winning {d}\n", .{v.count});
+
+    return 0;
+}
+
+test "try running through all permutations and see if it compiles" {
+    const track_lines = "S+=  =-=\n- =+-+ +\n+      +\n=+=-+--=\n";
+    const allocator = std.testing.allocator;
+
+    const track = try parseTrack(allocator, track_lines);
+    defer allocator.free(track);
+
+    const baseline_strategy = "=+-++-+=+=-";
+
+    var v: TrackContext = .{ .track = track, .num_laps = 2024, .baseline_score = runTrack(track, 2024, baseline_strategy) };
+    var l = "---===+++++".*;
+    generatePermutations(u8, &l, &v, &cmpOperator, &processTrack);
+    std.debug.print("total winning {d}\n", .{v.count});
 }

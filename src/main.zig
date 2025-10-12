@@ -96,5 +96,8 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "2")) {
             std.debug.print("{s}\n", .{try quest7.answer2(allocator, lines, 10)});
         }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{d}\n", .{try quest7.answer3(allocator, lines)});
+        }
     }
 }

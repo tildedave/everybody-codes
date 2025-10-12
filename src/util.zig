@@ -313,39 +313,7 @@ test "NumberIterator" {
     try expectEqual(10024, it.next());
 }
 
-fn cmpOperator(ch1: u8, ch2: u8) i8 {
-    if (ch1 == ch2) {
-        return 0;
-    }
-
-    if (ch1 == '-') {
-        if (ch2 == '+' or ch2 == '=') {
-            return -1;
-        }
-        unreachable;
-    }
-
-    if (ch1 == '=') {
-        if (ch2 == '+') {
-            return -1;
-        }
-        if (ch2 == '-') {
-            return 1;
-        }
-        unreachable;
-    }
-
-    if (ch1 == '+') {
-        if (ch2 == '=' or ch2 == '-') {
-            return 1;
-        }
-        unreachable;
-    }
-
-    unreachable;
-}
-
-fn generatePermutations(
+pub fn generatePermutations(
     comptime T: type,
     l: []T,
     ctx: anytype,
@@ -400,9 +368,20 @@ fn countFn(ctx: *Counter, str: []const u8) void {
     // std.debug.print("{s}\n", .{str});
 }
 
+fn compareU8(lhs: u8, rhs: u8) i8 {
+    if (lhs < rhs) {
+        return -1;
+    } else if (lhs == rhs) {
+        return 0;
+    } else if (lhs > rhs) {
+        return 1;
+    }
+    unreachable;
+}
+
 test "generatePermutations" {
     var v: Counter = .{ .total = 0 };
-    var l = "---===+++++".*;
-    generatePermutations(u8, &l, &v, &cmpOperator, &countFn);
-    try expectEqual(9240, v.total);
+    var l = [5]u8{ 1, 1, 2, 3, 4 };
+    generatePermutations(u8, &l, &v, compareU8, &countFn);
+    try expectEqual(60, v.total);
 }
