@@ -315,13 +315,13 @@ fn runTrack(track: []const u8, num_laps: u32, strategy: []const u8) u64 {
 fn processTrack(ctx: *TrackContext, strategy: []const u8) void {
     const score = runTrack(ctx.track, ctx.num_laps, strategy);
     if (score > ctx.baseline_score) {
-        std.debug.print("srategy {s} wins: {d}\n", .{ strategy, score });
+        // std.debug.print("strategy {s} wins: {d}\n", .{ strategy, score });
         ctx.count += 1;
     }
 }
 
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u32 {
-    const track_lines = "S-=++=-==++=++=-=+=-=+=+=--=-=++=-==++=-+=-=+=-=+=+=++=-+==++=++=-=-=--\n-                                                                     -\n=                                                                     =\n+                                                                     +\n=                                                                     +\n+                                                                     =\n=                                                                     =\n-                                                                     -\n--==++++==+=+++-=+=-=+=-+-=+-=+-=+=-=+=--=+++=++=+++==++==--=+=++==+++-\n";
+    const track_lines = "S+= +=-== +=++=     =+=+=--=    =-= ++=     +=-  =+=++=-+==+ =++=-=-=--\n- + +   + =   =     =      =   == = - -     - =  =         =-=        -\n= + + +-- =-= ==-==-= --++ +  == == = +     - =  =    ==++=    =++=-=++\n+ + + =     +         =  + + == == ++ =     = =  ==   =   = =++=       \n= = + + +== +==     =++ == =+=  =  +  +==-=++ =   =++ --= + =          \n+ ==- = + =   = =+= =   =       ++--          +     =   = = =--= ==++==\n=     ==- ==+-- = = = ++= +=--      ==+ ==--= +--+=-= ==- ==   =+=    =\n-               = = = =   +  +  ==+ = = +   =        ++    =          -\n-               = + + =   +  -  = + = = +   =        +     =          -\n--==++++==+=+++-= =-= =-+-=  =+-= =-= =--   +=++=+++==     -=+=++==+++-\n";
     const track = try parseTrack(allocator, track_lines);
     defer allocator.free(track);
 
@@ -335,14 +335,11 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u32 {
         try strategy.append(allocator, line[i]);
     }
 
-    std.debug.print("{s}", .{strategy.items});
-
     var v: TrackContext = .{ .track = track, .num_laps = 2024, .baseline_score = runTrack(track, 2024, strategy.items) };
     var l = "---===+++++".*;
     generatePermutations(u8, &l, &v, &cmpOperator, &processTrack);
-    std.debug.print("total winning {d}\n", .{v.count});
 
-    return 0;
+    return v.count;
 }
 
 test "try running through all permutations and see if it compiles" {
