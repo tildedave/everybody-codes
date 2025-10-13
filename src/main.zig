@@ -6,6 +6,7 @@ const quest4 = @import("quest4.zig");
 const quest5 = @import("quest5.zig");
 const quest6 = @import("quest6.zig");
 const quest7 = @import("quest7.zig");
+const quest8 = @import("quest8.zig");
 const util = @import("util.zig");
 
 pub fn main() !void {
@@ -98,6 +99,19 @@ pub fn main() !void {
         }
         if (std.mem.eql(u8, part, "3")) {
             std.debug.print("{d}\n", .{try quest7.answer3(allocator, lines)});
+        }
+    }
+    if (std.mem.eql(u8, quest, "quest8")) {
+        const newline = std.mem.indexOfScalar(u8, lines, '\n');
+        const num: u64 = try std.fmt.parseInt(u64, if (newline == null) lines else lines[0..newline.?], 10);
+        if (std.mem.eql(u8, part, "1")) {
+            std.debug.print("{d}\n", .{quest8.answer1(num)});
+        }
+        if (std.mem.eql(u8, part, "2")) {
+            std.debug.print("{d}\n", .{quest8.answer2(20240000, 1111, num)});
+        }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{d}\n", .{try quest8.answer3(allocator, 202400000, 10, num)});
         }
     }
 }
