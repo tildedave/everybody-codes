@@ -1,9 +1,14 @@
 const util = @import("util.zig");
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
+const expectEqualStrings = std.testing.expectEqualStrings;
 
-fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, start_y: usize) ![]const u8 {
+fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, start_y: usize) ![]u8 {
     var result = try allocator.alloc(u8, 16);
+    for (0..16) |i| {
+        result[i] = '.';
+    }
+
     var result_idx: usize = 0;
 
     var y: usize = start_y;
@@ -31,13 +36,21 @@ fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
                     .direction = dir,
                     .idx = util.index(grid, x, y),
                 };
+                // std.debug.print("({d}, {d}) {any} ", .{ x, y, dir });
+                var seen_letter = false;
                 while (it.next()) |ch| {
                     if (ch == '.') {
+                        if (seen_letter) {
+                            break;
+                        }
                         continue;
                     }
                     if (ch == ' ') {
                         break;
                     }
+
+                    seen_letter = true;
+                    // std.debug.print("{c}", .{ch});
 
                     if (index_seen.contains(ch)) {
                         letter = ch;
@@ -46,8 +59,11 @@ fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
                         try index_seen.put(ch, true);
                     }
                 }
+                // std.debug.print("\n", .{});
             }
-            result[result_idx] = letter.?;
+            if (letter) |l| {
+                result[result_idx] = l;
+            }
             result_idx += 1;
         }
     }
@@ -112,6 +128,71 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     return total;
 }
 
+fn solveWord(allocator: std.mem.Allocator, partially_filled_word: []u8, grid: util.Grid, x: usize, y: usize) !void {
+    for (partially_filled_word, 0..) |c, i| {
+        if (c != '.') {
+            continue;
+        }
+
+        const x_offset = i % 4;
+        const y_offset = i / 4;
+
+        // need to find which letter only shows up once.
+        var map = std.AutoHashMap(u8, u32).init(allocator);
+        defer map.deinit();
+        // walk from all directions.  should only see letters.
+
+        for (util.cardinalDirections) |dir| {
+            // duplicate of above sadly
+            var it = util.DirectionIterator{
+                .grid = grid,
+                .direction = dir,
+                .idx = util.index(grid, x + x_offset, y + y_offset),
+            };
+            // std.debug.print("({d}, {d}) {any} ", .{ x + x_offset, y + y_offset, dir });
+            _ = it.next();
+            while (it.next()) |ch| {
+                var l = ch;
+                if (l == '.') {
+                    // must look up the partially filled word index
+                    const it_x = it.idx % (grid.width + 1);
+                    const it_y = it.idx / (grid.width + 1);
+
+                    if (it_x - x >= 4 or it_y - y >= 4) {
+                        break;
+                    }
+                    // std.debug.print("it_x - x {d} it_y - y {d}\n", .{ it_x - x, it_y - y });
+                    const l_idx = (it_y - y) * 4 + (it_x - x);
+
+                    if (l_idx == i) {
+                        continue;
+                    }
+                    l = partially_filled_word[l_idx];
+                }
+                // std.debug.print("{c}", .{l});
+
+                if (map.get(l)) |count| {
+                    try map.put(l, count + 1);
+                } else {
+                    try map.put(l, 1);
+                }
+            }
+            // std.debug.print("\n", .{});
+        }
+
+        var letter: ?u8 = null;
+        var key_it = map.keyIterator();
+        while (key_it.next()) |ch| {
+            // std.debug.print("beep {c} {any}\n", .{ ch.*, map.get(ch.*) });
+            if (map.get(ch.*) == 1 and ch.* != '?') {
+                letter = ch.*;
+            }
+        }
+        // std.debug.print("letter is {c}\n", .{letter.?});
+        partially_filled_word[i] = letter.?;
+    }
+}
+
 test "given example (part 1)" {
     const lines = "**PCBS**\n**RLNW**\nBV....PT\nCR....HZ\nFL....JW\nSG....MN\n**FTZV**\n**GMJH**\n";
     const result = try answer1(std.testing.allocator, lines);
@@ -122,4 +203,14 @@ test "given example (part 1)" {
 test "double example (part 2)" {
     const lines = "**QGSF** **PSHM**\n**RMPC** **GLWD**\nGX....DR XD....GS\nTW....MC ML....NP\nFN....QP WF....TQ\nJV....SL HB....CZ\n**WNXD** **QCNF**\n**VLTJ** **BTXZ**\n                 \n**VNPK** **MWGV**\n**RWBQ** **RZLP**\nFB....ZM NS....DQ\nHJ....VX MV....CK\nPW....QC PR....ZL\nTK....RN GB....XW\n**CHTX** **DQSB**\n**FZJM** **XKCN**\n";
     try expectEqual(wordPower("RGXDWMTCQNPFVLSJ") + wordPower("FZBMVHJXCWPQRNTK") + wordPower("GSXDPLNMQTWFBCHZ") + wordPower("DQSNMKCVRZLPXWGB"), try answer2(std.testing.allocator, lines));
+}
+
+test "example (part 3)" {
+    const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
+    const grid = util.createGrid(lines);
+    const allocator = std.testing.allocator;
+    const word: []u8 = try runicWord(allocator, grid, 2, 2);
+    defer std.testing.allocator.free(word);
+    try solveWord(allocator, word, grid, 2, 2);
+    try expectEqualStrings("LWGVXSHBPJQKNFZM", word);
 }
