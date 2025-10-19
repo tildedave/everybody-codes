@@ -48,6 +48,9 @@ fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
                     if (ch == ' ') {
                         break;
                     }
+                    if (ch == '?') {
+                        continue;
+                    }
 
                     seen_letter = true;
                     // std.debug.print("{c}", .{ch});
@@ -74,6 +77,9 @@ fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
 fn wordPower(str: []const u8) u64 {
     var total: u64 = 0;
     for (str, 0..) |s, i| {
+        if (s == '.') {
+            return 0;
+        }
         total += (s - 'A' + 1) * (i + 1);
     }
     return total;
@@ -128,6 +134,51 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     return total;
 }
 
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
+    const grid = util.createGrid(lines);
+    var total: u64 = 0;
+
+    var y: usize = 2;
+    while (y < grid.height - 2) {
+        var x: usize = 2;
+        while (x < grid.width - 2) {
+            // we know x and y are within a grid (should be '.')
+            var i = util.index(grid, x, y);
+            if (grid.lines[i] != '.') {
+                return 0;
+            }
+            const word = try runicWord(allocator, grid, x, y);
+            defer allocator.free(word);
+            std.debug.print("{s} ", .{word});
+            try solveWord(allocator, word, grid, x, y);
+            total += wordPower(word);
+            std.debug.print("({d}, {d}) {s}\n", .{ x, y, word });
+
+            while (grid.lines[i] == '.') : (i += 1) {}
+            while (grid.lines[i] != '.' and grid.lines[i] != '\n') : (i += 1) {}
+
+            if (grid.lines[i] == '\n') {
+                x = 2;
+                break;
+            }
+            x = i % (grid.width + 1);
+        }
+        var i = util.index(grid, x, y);
+
+        while (i < grid.lines.len and grid.lines[i] == '.') : (i += (grid.width + 1)) {}
+        if (i >= grid.lines.len) {
+            break;
+        }
+        while (i < grid.lines.len and grid.lines[i] != '.') : (i += (grid.width + 1)) {}
+        if (i >= grid.lines.len) {
+            break;
+        }
+        y = i / (grid.width + 1);
+    }
+
+    return total;
+}
+
 fn solveWord(allocator: std.mem.Allocator, partially_filled_word: []u8, grid: util.Grid, x: usize, y: usize) !void {
     for (partially_filled_word, 0..) |c, i| {
         if (c != '.') {
@@ -158,7 +209,7 @@ fn solveWord(allocator: std.mem.Allocator, partially_filled_word: []u8, grid: ut
                     const it_x = it.idx % (grid.width + 1);
                     const it_y = it.idx / (grid.width + 1);
 
-                    if (it_x - x >= 4 or it_y - y >= 4) {
+                    if (it_x < x or it_y < y or it_x - x >= 4 or it_y - y >= 4) {
                         break;
                     }
                     // std.debug.print("it_x - x {d} it_y - y {d}\n", .{ it_x - x, it_y - y });
@@ -181,15 +232,20 @@ fn solveWord(allocator: std.mem.Allocator, partially_filled_word: []u8, grid: ut
         }
 
         var letter: ?u8 = null;
+        var unsolvable = false;
         var key_it = map.keyIterator();
         while (key_it.next()) |ch| {
-            // std.debug.print("beep {c} {any}\n", .{ ch.*, map.get(ch.*) });
             if (map.get(ch.*) == 1 and ch.* != '?') {
+                if (letter != null) {
+                    unsolvable = true;
+                }
                 letter = ch.*;
             }
         }
         // std.debug.print("letter is {c}\n", .{letter.?});
-        partially_filled_word[i] = letter.?;
+        if (!unsolvable) {
+            partially_filled_word[i] = letter.?;
+        }
     }
 }
 
@@ -213,4 +269,11 @@ test "example (part 3)" {
     defer std.testing.allocator.free(word);
     try solveWord(allocator, word, grid, 2, 2);
     try expectEqualStrings("LWGVXSHBPJQKNFZM", word);
+}
+
+test "full part 3" {
+    const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
+    const allocator = std.testing.allocator;
+
+    try expectEqual(3889, try answer3(allocator, lines));
 }
