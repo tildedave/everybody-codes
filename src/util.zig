@@ -23,7 +23,7 @@ test "nthIndexOfScalar" {
 }
 
 pub const Grid = struct {
-    lines: []const u8,
+    lines: []u8,
     width: usize,
     height: usize,
 };
@@ -147,9 +147,12 @@ pub const DirectionIterator = struct {
     }
 };
 
-pub fn createGrid(lines: []const u8) Grid {
+pub fn createGrid(allocator: std.mem.Allocator, lines: []const u8) !Grid {
+    const lines_copy = try allocator.alloc(u8, lines.len);
+    @memcpy(lines_copy, lines);
+
     return Grid{
-        .lines = lines,
+        .lines = lines_copy,
         .width = std.mem.indexOfScalar(u8, lines, '\n').?,
         .height = std.mem.count(u8, lines, "\n"),
     };
@@ -178,7 +181,9 @@ pub const NeighborIterator = struct {
 
 test "NeighborIterator" {
     const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = NeighborIterator{ .grid = grid, .idx = 13 };
     try expectEqual('#', grid.lines[13]);
     try expectEqual('.', it.next());
@@ -190,7 +195,9 @@ test "NeighborIterator" {
 
 test "NeighborIterator (all neighbors)" {
     const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = NeighborIterator{ .grid = grid, .idx = 13, .directions = allDirections };
     try expectEqual('#', grid.lines[13]);
     try expectEqual('.', it.next());
@@ -206,7 +213,9 @@ test "NeighborIterator (all neighbors)" {
 
 test "DirectionIterator - right (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
@@ -221,7 +230,9 @@ test "DirectionIterator - right (wraparound)" {
 
 test "DirectionIterator - right (no wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .right, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = false } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
@@ -236,7 +247,9 @@ test "DirectionIterator - right (no wraparound)" {
 
 test "DirectionIterator - down (no wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
@@ -246,7 +259,9 @@ test "DirectionIterator - down (no wraparound)" {
 
 test "DirectionIterator - down (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .down, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_vertical = true } };
     try expectEqual('H', it.next());
     try expectEqual('E', it.next());
@@ -256,7 +271,9 @@ test "DirectionIterator - down (wraparound)" {
 
 test "DirectionIterator - left (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .left, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = true } };
     try expectEqual('H', it.next());
     try expectEqual('T', it.next());
@@ -265,7 +282,9 @@ test "DirectionIterator - left (wraparound)" {
 
 test "DirectionIterator - left (no wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
+
     var it = DirectionIterator{ .direction = .left, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_horizontal = false } };
     try expectEqual('H', it.next());
     try expectEqual(null, it.next());
@@ -273,7 +292,8 @@ test "DirectionIterator - left (no wraparound)" {
 
 test "DirectionIterator - up (no wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
 
     var it = DirectionIterator{ .direction = .up, .idx = 0, .grid = grid };
     try expectEqual('H', it.next());
@@ -282,7 +302,8 @@ test "DirectionIterator - up (no wraparound)" {
 
 test "DirectionIterator - up (wraparound)" {
     const lines = "HELWORLT\nENIGWDXL\nTRODEOAL\n";
-    const grid = createGrid(lines);
+    const grid = try createGrid(std.testing.allocator, lines);
+    defer std.testing.allocator.free(grid.lines);
 
     var it = DirectionIterator{ .direction = .up, .idx = 0, .grid = grid, .walk_opts = .{ .wraparound_vertical = true } };
     try expectEqual('H', it.next());

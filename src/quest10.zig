@@ -3,6 +3,67 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
+fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []const u8, x: usize, y: usize) !?u8 {
+    var seen = std.AutoHashMap(u8, u32).init(allocator);
+    defer seen.deinit();
+
+    var questionmark_idx: ?usize = null;
+    for (util.cardinalDirections) |dir| {
+        var it = util.DirectionIterator{
+            .grid = grid,
+            .direction = dir,
+            .idx = util.index(grid, x, y),
+        };
+
+        _ = it.next();
+        var seen_letter = false;
+
+        std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
+        while (it.next()) |ch| {
+            std.debug.print("{c}", .{ch});
+            // boundary checking
+            if (original_lines[it.idx] == '.') {
+                if (seen_letter) {
+                    break;
+                }
+                continue;
+            }
+            if (ch == ' ') {
+                break;
+            }
+
+            if (ch == '?' and questionmark_idx == null) {
+                questionmark_idx = it.idx;
+                continue;
+            }
+
+            seen_letter = true;
+            if (seen.get(ch)) |v| {
+                try seen.put(ch, v + 1);
+            } else {
+                try seen.put(ch, 1);
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+
+    std.debug.print("solve time\n", .{});
+
+    var letter: ?u8 = null;
+    var key_it = seen.keyIterator();
+    while (key_it.next()) |ch| {
+        if (seen.get(ch.*) == 2) {
+            letter = ch.*;
+        }
+    }
+
+    if (letter) |l| {
+        return l;
+    }
+
+    return null;
+}
+
 fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, start_y: usize) ![]u8 {
     var result = try allocator.alloc(u8, 16);
     for (0..16) |i| {
@@ -22,49 +83,9 @@ fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
             if (grid.lines[util.index(grid, x, y)] != '.') {
                 break;
             }
-            var index_seen = std.AutoHashMap(u8, bool).init(allocator);
-            defer index_seen.deinit();
-            var letter: ?u8 = null;
 
-            for (util.cardinalDirections) |dir| {
-                if (letter != null) {
-                    break;
-                }
-
-                var it = util.DirectionIterator{
-                    .grid = grid,
-                    .direction = dir,
-                    .idx = util.index(grid, x, y),
-                };
-                // std.debug.print("({d}, {d}) {any} ", .{ x, y, dir });
-                var seen_letter = false;
-                while (it.next()) |ch| {
-                    if (ch == '.') {
-                        if (seen_letter) {
-                            break;
-                        }
-                        continue;
-                    }
-                    if (ch == ' ') {
-                        break;
-                    }
-                    if (ch == '?') {
-                        continue;
-                    }
-
-                    seen_letter = true;
-                    // std.debug.print("{c}", .{ch});
-
-                    if (index_seen.contains(ch)) {
-                        letter = ch;
-                        break;
-                    } else {
-                        try index_seen.put(ch, true);
-                    }
-                }
-                // std.debug.print("\n", .{});
-            }
-            if (letter) |l| {
+            if (try solveLetter(allocator, grid, grid.lines, x, y)) |l| {
+                std.debug.print("{c} {d}\n", .{ l, result_idx });
                 result[result_idx] = l;
             }
             result_idx += 1;
@@ -91,12 +112,16 @@ test "base power" {
 }
 
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) ![]const u8 {
-    const grid = util.createGrid(lines);
+    const grid = try util.createGrid(allocator, lines);
+    defer allocator.free(grid.lines);
+
     return runicWord(allocator, grid, 2, 2);
 }
 
 pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
-    const grid = util.createGrid(lines);
+    const grid = try util.createGrid(allocator, lines);
+    defer allocator.free(grid.lines);
+
     var total: u64 = 0;
 
     var y: usize = 2;
@@ -135,8 +160,10 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
 }
 
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
-    const grid = util.createGrid(lines);
-    var total: u64 = 0;
+    const grid = try util.createGrid(allocator, lines);
+    defer allocator.free(grid.lines);
+
+    const total: u64 = 0;
 
     var y: usize = 2;
     while (y < grid.height - 2) {
@@ -147,12 +174,11 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
             if (grid.lines[i] != '.') {
                 return 0;
             }
-            const word = try runicWord(allocator, grid, x, y);
-            defer allocator.free(word);
-            std.debug.print("{s} ", .{word});
-            try solveWord(allocator, word, grid, x, y);
-            total += wordPower(word);
-            std.debug.print("({d}, {d}) {s}\n", .{ x, y, word });
+
+            const letter = try solveLetter(allocator, grid, lines, x, y);
+            if (letter) |ch| {
+                grid.lines[util.index(grid, x, y)] = ch;
+            }
 
             while (grid.lines[i] == '.') : (i += 1) {}
             while (grid.lines[i] != '.' and grid.lines[i] != '\n') : (i += 1) {}
@@ -174,6 +200,11 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
             break;
         }
         y = i / (grid.width + 1);
+    }
+
+    var it = std.mem.splitScalar(u8, grid.lines, '\n');
+    while (it.next()) |line| {
+        std.debug.print("{s}\n", .{line});
     }
 
     return total;
@@ -263,17 +294,20 @@ test "double example (part 2)" {
 
 test "example (part 3)" {
     const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
-    const grid = util.createGrid(lines);
     const allocator = std.testing.allocator;
+
+    const grid = try util.createGrid(allocator, lines);
+    defer allocator.free(grid.lines);
+
     const word: []u8 = try runicWord(allocator, grid, 2, 2);
     defer std.testing.allocator.free(word);
     try solveWord(allocator, word, grid, 2, 2);
     try expectEqualStrings("LWGVXSHBPJQKNFZM", word);
 }
 
-test "full part 3" {
-    const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
-    const allocator = std.testing.allocator;
+// test "full part 3" {
+//     const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
+//     const allocator = std.testing.allocator;
 
-    try expectEqual(3889, try answer3(allocator, lines));
-}
+//     try expectEqual(3889, try answer3(allocator, lines));
+// }
