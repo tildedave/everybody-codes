@@ -64,7 +64,7 @@ fn down_y(grid: Grid, y: usize, opts: WalkOptions) ?usize {
 fn left_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
     if (x == 0) {
         if (opts.wraparound_horizontal) {
-            return grid.width - 2;
+            return grid.width - 1;
         } else {
             return null;
         }
@@ -74,16 +74,20 @@ fn left_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
 }
 
 fn right_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
-    if (x == grid.width - 2 and !opts.wraparound_horizontal) {
+    if (x == grid.width - 1 and !opts.wraparound_horizontal) {
         return null;
     }
 
-    return (x + 1) % (grid.width - 1);
+    return (x + 1) % grid.width;
+}
+
+pub fn index(grid: Grid, x: usize, y: usize) usize {
+    return y * (grid.width + 1) + x;
 }
 
 pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?usize {
-    const x = idx % grid.width;
-    const y = idx / grid.width;
+    const x = idx % (grid.width + 1);
+    const y = idx / (grid.width + 1);
 
     var next_y: ?usize = y;
     var next_x: ?usize = x;
@@ -115,7 +119,7 @@ pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?us
         return null;
     }
 
-    return next_y.? * grid.width + next_x.?;
+    return index(grid, next_x.?, next_y.?);
 }
 
 // infinite iterator
@@ -146,7 +150,7 @@ pub const DirectionIterator = struct {
 pub fn createGrid(lines: []const u8) Grid {
     return Grid{
         .lines = lines,
-        .width = std.mem.indexOfScalar(u8, lines, '\n').? + 1,
+        .width = std.mem.indexOfScalar(u8, lines, '\n').?,
         .height = std.mem.count(u8, lines, "\n"),
     };
 }
