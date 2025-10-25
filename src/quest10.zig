@@ -17,9 +17,9 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []
         _ = it.next();
         var seen_letter = false;
 
-        std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
+        // std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
         while (it.next()) |ch| {
-            std.debug.print("{c}", .{ch});
+            // std.debug.print("{c}", .{ch});
             // boundary checking
             if (original_lines[it.idx] == '.') {
                 if (seen_letter) {
@@ -42,10 +42,10 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []
                 try seen.put(ch, 1);
             }
         }
-        std.debug.print("\n", .{});
+        // std.debug.print("\n", .{});
     }
 
-    std.debug.print("solve time\n", .{});
+    // std.debug.print("solve time\n", .{});
 
     var letter: ?u8 = null;
     var key_it = seen.keyIterator();
@@ -77,13 +77,13 @@ fn solveQuestionMark(allocator: std.mem.Allocator, grid: util.Grid, original_lin
         _ = it.next();
         var seen_letter = false;
 
-        std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
+        // std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
         while (it.next()) |ch| {
-            std.debug.print("{c}", .{ch});
+            // std.debug.print("{c}", .{ch});
             // boundary checking
             if (original_lines[it.idx] == '.') {
                 if (seen_letter) {
-                    std.debug.print(" -- done", .{});
+                    // std.debug.print(" -- done", .{});
                     break;
                 }
             }
@@ -105,25 +105,25 @@ fn solveQuestionMark(allocator: std.mem.Allocator, grid: util.Grid, original_lin
             if (seen.contains(ch)) {
                 try seen.put(ch, seen.get(ch).? + 1);
             } else {
-                std.debug.print(" (not seen yet) ", .{});
+                // std.debug.print(" (not seen yet) ", .{});
                 try seen.put(ch, 1);
             }
         }
-        std.debug.print("\n", .{});
+        // std.debug.print("\n", .{});
     }
 
     if (questionmark_idx) |qi| {
         var letter: ?u8 = null;
         var key_it = seen.keyIterator();
         while (key_it.next()) |ch| {
-            std.debug.print("{c} {d}\n", .{ ch.*, seen.get(ch.*).? });
+            // std.debug.print("{c} {d}\n", .{ ch.*, seen.get(ch.*).? });
             if (seen.get(ch.*) == 1) {
                 letter = ch.*;
             }
         }
 
         if (letter) |l| {
-            std.debug.print("solve time ({d}, {d}) - missing piece was {c}\n", .{ qi % (grid.width + 1), qi / (grid.width + 1), l });
+            // std.debug.print("solve time ({d}, {d}) - missing piece was {c}\n", .{ qi % (grid.width + 1), qi / (grid.width + 1), l });
 
             grid.lines[qi] = l;
             grid.lines[util.index(grid, x, y)] = l;
@@ -193,6 +193,10 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
 
+    return totalRunicPower(allocator, grid);
+}
+
+fn totalRunicPower(allocator: std.mem.Allocator, grid: util.Grid) !u64 {
     var total: u64 = 0;
 
     var y: usize = 2;
@@ -233,8 +237,6 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
-
-    const total: u64 = 0;
 
     var y: usize = 2;
     while (y < grid.height - 2) {
@@ -302,6 +304,36 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     var it = std.mem.splitScalar(u8, grid.lines, '\n');
     while (it.next()) |line| {
         std.debug.print("{s}\n", .{line});
+    }
+
+    var words = std.StringHashMap(bool).init(allocator);
+    defer words.deinit();
+
+    y = 2;
+    while (y < grid.height - 2) : (y += 6) {
+        var x: usize = 2;
+        while (x < grid.width - 2) : (x += 6) {
+            var word = try allocator.alloc(u8, 16);
+            for (0..16) |i| {
+                word[i] = '.';
+            }
+            var i: usize = 0;
+            for (0..4) |dy| {
+                for (0..4) |dx| {
+                    word[i] = grid.lines[util.index(grid, x + dx, y + dy)];
+                    i += 1;
+                }
+            }
+            std.debug.print("word {s}\n", .{word});
+            try words.put(word, true);
+        }
+    }
+
+    var total: u64 = 0;
+    var key_it = words.keyIterator();
+    while (key_it.next()) |w| {
+        total += wordPower(w.*);
+        allocator.free(w.*);
     }
 
     return total;
