@@ -7,7 +7,6 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []
     var seen = std.AutoHashMap(u8, u32).init(allocator);
     defer seen.deinit();
 
-    var questionmark_idx: ?usize = null;
     for (util.cardinalDirections) |dir| {
         var it = util.DirectionIterator{
             .grid = grid,
@@ -32,8 +31,7 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []
                 break;
             }
 
-            if (ch == '?' and questionmark_idx == null) {
-                questionmark_idx = it.idx;
+            if (ch == '?') {
                 continue;
             }
 
@@ -62,6 +60,79 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []
     }
 
     return null;
+}
+
+fn solveQuestionMark(allocator: std.mem.Allocator, grid: util.Grid, original_lines: []const u8, x: usize, y: usize) !bool {
+    var seen = std.AutoHashMap(u8, u32).init(allocator);
+    defer seen.deinit();
+    var questionmark_idx: ?usize = null;
+
+    for (util.cardinalDirections) |dir| {
+        var it = util.DirectionIterator{
+            .grid = grid,
+            .direction = dir,
+            .idx = util.index(grid, x, y),
+        };
+
+        _ = it.next();
+        var seen_letter = false;
+
+        std.debug.print("({d}, {d}) {any} --> ", .{ x, y, dir });
+        while (it.next()) |ch| {
+            std.debug.print("{c}", .{ch});
+            // boundary checking
+            if (original_lines[it.idx] == '.') {
+                if (seen_letter) {
+                    std.debug.print(" -- done", .{});
+                    break;
+                }
+            }
+            if (ch == ' ') {
+                break;
+            }
+
+            if (ch == '?') {
+                if (questionmark_idx != null) {
+                    return false;
+                }
+                questionmark_idx = it.idx;
+                continue;
+            }
+
+            if (original_lines[it.idx] != '.') {
+                seen_letter = true;
+            }
+            if (seen.contains(ch)) {
+                try seen.put(ch, seen.get(ch).? + 1);
+            } else {
+                std.debug.print(" (not seen yet) ", .{});
+                try seen.put(ch, 1);
+            }
+        }
+        std.debug.print("\n", .{});
+    }
+
+    if (questionmark_idx) |qi| {
+        var letter: ?u8 = null;
+        var key_it = seen.keyIterator();
+        while (key_it.next()) |ch| {
+            std.debug.print("{c} {d}\n", .{ ch.*, seen.get(ch.*).? });
+            if (seen.get(ch.*) == 1) {
+                letter = ch.*;
+            }
+        }
+
+        if (letter) |l| {
+            std.debug.print("solve time ({d}, {d}) - missing piece was {c}\n", .{ qi % (grid.width + 1), qi / (grid.width + 1), l });
+
+            grid.lines[qi] = l;
+            grid.lines[util.index(grid, x, y)] = l;
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 fn runicWord(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, start_y: usize) ![]u8 {
@@ -172,6 +243,11 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
             // we know x and y are within a grid (should be '.')
             var i = util.index(grid, x, y);
             if (grid.lines[i] != '.') {
+                std.debug.print("messed up!!! {d} {d} --------\n", .{ x, y });
+                var it = std.mem.splitScalar(u8, grid.lines, '\n');
+                while (it.next()) |line| {
+                    std.debug.print("{s}\n", .{line});
+                }
                 return 0;
             }
 
@@ -180,28 +256,49 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
                 grid.lines[util.index(grid, x, y)] = ch;
             }
 
-            while (grid.lines[i] == '.') : (i += 1) {}
-            while (grid.lines[i] != '.' and grid.lines[i] != '\n') : (i += 1) {}
+            i += 1;
+            while (lines[i] != '.' and lines[i] != '\n') : (i += 1) {}
 
-            if (grid.lines[i] == '\n') {
+            if (lines[i] == '\n') {
                 x = 2;
                 break;
             }
             x = i % (grid.width + 1);
         }
-        var i = util.index(grid, x, y);
+        var i = util.index(grid, x, y + 1);
 
-        while (i < grid.lines.len and grid.lines[i] == '.') : (i += (grid.width + 1)) {}
-        if (i >= grid.lines.len) {
-            break;
-        }
-        while (i < grid.lines.len and grid.lines[i] != '.') : (i += (grid.width + 1)) {}
+        while (i < grid.lines.len and lines[i] != '.') : (i += (grid.width + 1)) {}
         if (i >= grid.lines.len) {
             break;
         }
         y = i / (grid.width + 1);
     }
 
+    var solved_any = true;
+    while (solved_any) {
+        std.debug.print("solve loop\n", .{});
+        solved_any = false;
+        y = 2;
+        while (y < grid.height - 2) : (y += 1) {
+            var x: usize = 2;
+            while (x < grid.width - 2) : (x += 1) {
+                const i = util.index(grid, x, y);
+                if (grid.lines[i] == '.') {
+                    const result = try solveQuestionMark(allocator, grid, lines, x, y);
+                    if (result) {
+                        solved_any = true;
+                    }
+
+                    if (try solveLetter(allocator, grid, lines, x, y)) |l| {
+                        grid.lines[i] = l;
+                        solved_any = true;
+                    }
+                }
+            }
+        }
+    }
+
+    std.debug.print("--------\n", .{});
     var it = std.mem.splitScalar(u8, grid.lines, '\n');
     while (it.next()) |line| {
         std.debug.print("{s}\n", .{line});
@@ -305,9 +402,9 @@ test "example (part 3)" {
     try expectEqualStrings("LWGVXSHBPJQKNFZM", word);
 }
 
-// test "full part 3" {
-//     const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
-//     const allocator = std.testing.allocator;
+test "full part 3" {
+    const lines = "**XFZB**DCST**\n**LWQK**GQJH**\n?G....WL....DQ\nBS....H?....CN\nP?....KJ....TV\nNM....Z?....SG\n**NSHM**VKWZ**\n**PJGV**XFNL**\nWQ....?L....YS\nFX....DJ....HV\n?Y....WM....?J\nTJ....YK....LP\n**XRTK**BMSP**\n**DWZN**GCJV**\n";
+    const allocator = std.testing.allocator;
 
-//     try expectEqual(3889, try answer3(allocator, lines));
-// }
+    try expectEqual(3889, try answer3(allocator, lines));
+}

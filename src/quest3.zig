@@ -2,9 +2,9 @@ const std = @import("std");
 const util = @import("util.zig");
 const expectEqual = std.testing.expectEqual;
 
-fn dig(lines: []u8, next_lines: []u8, directions: []const util.Direction) u32 {
+fn dig(allocator: std.mem.Allocator, lines: []u8, next_lines: []u8, directions: []const util.Direction) !u32 {
     var holes_dug: u32 = 0;
-    const grid = util.createGrid(lines);
+    const grid = try util.createGrid(allocator, lines);
     for (0..grid.lines.len) |idx| {
         if (grid.lines[idx] == '\n') {
             next_lines[idx] = '\n';
@@ -31,13 +31,12 @@ fn dig(lines: []u8, next_lines: []u8, directions: []const util.Direction) u32 {
     return holes_dug;
 }
 
-pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
+pub fn digArea(allocator: std.mem.Allocator, lines: []const u8, directions: []const util.Direction) !usize {
     const initial = std.mem.count(u8, lines, "#");
 
     var total = initial;
     var holes_dug = initial;
 
-    const allocator = std.heap.page_allocator;
     var curr_lines = try allocator.alloc(u8, lines.len);
     var next_lines = try allocator.alloc(u8, lines.len);
     defer allocator.free(curr_lines);
@@ -46,7 +45,7 @@ pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
     std.mem.copyForwards(u8, curr_lines, lines);
 
     while (holes_dug != 0) {
-        holes_dug = dig(curr_lines, next_lines, directions);
+        holes_dug = try dig(allocator, curr_lines, next_lines, directions);
         total += holes_dug;
 
         const temp = curr_lines;
@@ -57,12 +56,12 @@ pub fn digArea(lines: []const u8, directions: []const util.Direction) !usize {
     return total;
 }
 
-pub fn answer1(lines: []const u8) !usize {
-    return digArea(lines, util.cardinalDirections);
+pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !usize {
+    return digArea(allocator, lines, util.cardinalDirections);
 }
 
-pub fn answer3(lines: []const u8) !usize {
-    return digArea(lines, util.allDirections);
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !usize {
+    return digArea(allocator, lines, util.allDirections);
 }
 
 test "can remove" {
@@ -81,10 +80,10 @@ test "can remove" {
 
 test "given example (part 1)" {
     const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
-    try expectEqual(35, answer1(lines));
+    try expectEqual(35, answer1(std.testing.allocator, lines));
 }
 
 test "given example (part 3)" {
     const lines = "..........\n..###.##..\n...####...\n..######..\n..######..\n...####...\n..........\n";
-    try expectEqual(29, answer3(lines));
+    try expectEqual(29, answer3(std.testing.allocator, lines));
 }

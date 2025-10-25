@@ -14,7 +14,7 @@ fn ltFn(ctx: SortContext, lhs: []const u8, rhs: []const u8) bool {
 }
 
 pub fn parseTrack(allocator: std.mem.Allocator, track_lines: []const u8) ![]const u8 {
-    const grid = util.createGrid(track_lines);
+    const grid = try util.createGrid(allocator, track_lines);
 
     var track = try std.ArrayList(u8).initCapacity(allocator, 0);
     defer track.deinit(allocator);

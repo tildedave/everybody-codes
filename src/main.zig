@@ -60,10 +60,10 @@ pub fn main() !void {
 
     if (std.mem.eql(u8, quest, "quest3")) {
         if (std.mem.eql(u8, part, "1")) {
-            std.debug.print("{d}\n", .{try quest3.answer1(lines)});
+            std.debug.print("{d}\n", .{try quest3.answer1(allocator, lines)});
         }
         if (std.mem.eql(u8, part, "3")) {
-            std.debug.print("{d}\n", .{try quest3.answer3(lines)});
+            std.debug.print("{d}\n", .{try quest3.answer3(allocator, lines)});
         }
     }
     if (std.mem.eql(u8, quest, "quest4")) {
