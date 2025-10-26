@@ -63,9 +63,14 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, st
         if (e.value_ptr.* == 2) {
             letter = e.key_ptr.*;
         }
+
+        // This case can never happen in a solvable block.
+        if (e.value_ptr.* > 2) {
+            return false;
+        }
     }
 
-    if (letter == null and seen.get('?') == 1) {
+    if (letter == null and qstmark_idx != null) {
         // need to look at everything in the row and column for the given x/y
         var visible = std.AutoHashMap(u8, u32).init(allocator);
         defer visible.deinit();
@@ -133,15 +138,31 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, st
 
             var visible_it = visible.iterator();
             while (visible_it.next()) |e| {
+                std.debug.print("{c}", .{e.key_ptr.*});
                 const ch = e.key_ptr.*;
                 if (ch != '?' and e.value_ptr.* == 1) {
+                    if (letter != null) {
+                        unsolvable = true;
+                    }
                     letter = ch;
                 }
             }
 
+            if (unsolvable) {
+                letter = null;
+            }
+            std.debug.print(" ({d})\n", .{visible.count()});
+
             if (letter) |l| {
                 // std.debug.print("solved as {c}!\n", .{l});
                 grid.lines[qstmark_idx.?] = l;
+            } else {
+                std.debug.print("not solvable\n", .{});
+                var vit = visible.iterator();
+                while (vit.next()) |e| {
+                    std.debug.print("{c}", .{e.key_ptr.*});
+                }
+                std.debug.print("\n", .{});
             }
         }
     }
