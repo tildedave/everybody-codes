@@ -36,7 +36,6 @@ fn fire(
 
         if (ry >= 0) {
             const ridx = util.index(grid, rx, @intCast(ry));
-            std.debug.print("({d}, {d}) {c}\n", .{ rx, ry, grid.lines[ridx] });
             if (grid.lines[ridx] != '.') {
                 // check above too
                 const above_ridx = util.index(grid, rx, @intCast(ry - 1));
@@ -66,41 +65,12 @@ fn fire(
                 .descending => {},
             }
         }
-
-        // // there is no reason to check the grid until we are descending.
-        // for (0..power) |_| {
-        //     std.debug.print("({d}, {d})\n", .{ rx, ry });
-        // }
-        // for (0..power) |_| {
-        //     rx += 1;
-        //     std.debug.print("({d}, {d})\n", .{ rx, ry });
-        // }
-        // rx += 1;
-        // ry += 1;
-
-        // // there is also no reason to check the grid until we are at least at the
-        // // point where we launched (y)
-        // if (ry < y) {
-        //     std.debug.print("({d}, {d})\n", .{ rx, ry });
-        //     continue;
-        // }
-
     }
 }
 
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
-
-    // height doesn't matter
-    // we can be kind of sloppy for part 1, we'll see what happens in part 2
-
-    // _ = fire(grid, 1, 1, 2);
-
-    // const first_tidx = std.mem.indexOfScalar(u8, lines, 'T').?;
-    // const last_tidx = std.mem.lastIndexOfScalar(u8, lines, 'T').?;
-    // const first_tx = first_tidx % (grid.width + 1);
-    // const last_tx = last_tidx % (grid.width + 1);
 
     var total: u64 = 0;
 
@@ -113,7 +83,6 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
             }
 
             for (1..grid.width) |p| {
-                std.debug.print("{c}: testing power {d}\n", .{ ch, p });
                 if (fire(grid, 1, y, p)) |hit| {
                     const multiplier: u64 = (if (ch == 'A') 1 else if (ch == 'B') 2 else if (ch == 'C') 3 else unreachable);
                     total += p * multiplier;
@@ -124,15 +93,13 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
                         'H' => 'T',
                         else => unreachable,
                     };
-                    std.debug.print("hit! now\n{s}\n", .{grid.lines});
                 }
             }
-            // break;
         }
     }
 
-    std.debug.print("total {d}\n", .{total});
-    std.debug.print("{s}", .{grid.lines});
+    // std.debug.print("total {d}\n", .{total});
+    // std.debug.print("{s}", .{grid.lines});
     return total;
 }
 
