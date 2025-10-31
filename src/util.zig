@@ -164,6 +164,7 @@ pub const NeighborIterator = struct {
     walk_opts: WalkOptions = .{ .wraparound_horizontal = false, .wraparound_vertical = false },
     directions: []const Direction = &[_]Direction{ .up, .right, .down, .left },
     dir_idx: usize = 0,
+    next_idx: usize = 0,
 
     pub fn next(self: *NeighborIterator) ?u8 {
         while (self.dir_idx < self.directions.len) {
@@ -171,8 +172,9 @@ pub const NeighborIterator = struct {
             const next_idx = walk(self.grid, self.idx, dir, self.walk_opts);
             self.dir_idx += 1;
 
-            if (next_idx != null) {
-                return self.grid.lines[next_idx.?];
+            if (next_idx) |ni| {
+                self.next_idx = ni;
+                return self.grid.lines[ni];
             }
         }
         return null;
