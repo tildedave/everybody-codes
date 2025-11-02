@@ -51,32 +51,31 @@ test "distance" {
     try expectEqual(5, distance('9', '5'));
 }
 
+fn isEndAnswer1(ch: u8) bool {
+    return ch == 'E';
+}
+
+fn isEndAnswer3(ch: u8) bool {
+    return ch == 'S';
+}
+
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
 
     const start = std.mem.indexOfScalar(u8, lines, 'S').?;
-    return dijkstraSearch(allocator, grid, start);
+    return dijkstraSearch(allocator, grid, start, isEndAnswer1);
 }
 
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
 
-    // checking everything is certainly overkill but whatever
-    var idx: usize = 0;
-    var min_search: u64 = std.math.maxInt(u64);
-    while (std.mem.indexOfScalarPos(u8, lines, idx, 'S')) |start| : (idx = start + 1) {
-        const d = try dijkstraSearch(allocator, grid, start);
-        if (d < min_search) {
-            std.debug.print("{d}, {d}\n", .{ start, d });
-            min_search = d;
-        }
-    }
-    return min_search;
+    const start = std.mem.indexOfScalar(u8, lines, 'E').?;
+    return dijkstraSearch(allocator, grid, start, isEndAnswer3);
 }
 
-fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize) !u64 {
+fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize, comptime isEnd: fn (u8) bool) !u64 {
     var distances = std.AutoHashMap(usize, u64).init(allocator);
     defer distances.deinit();
     var visited = std.AutoHashMap(usize, bool).init(allocator);
@@ -84,10 +83,11 @@ fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize) !
     var frontier = std.AutoHashMap(usize, bool).init(allocator);
     defer frontier.deinit();
 
-    const end = std.mem.indexOfScalar(u8, grid.lines, 'E').?;
-
     try frontier.put(start, true);
     try distances.put(start, 0);
+
+    var min_dist: u64 = std.math.maxInt(u64);
+    var found_end = false;
 
     while (frontier.count() > 0) {
         var frontier_it = frontier.iterator();
@@ -106,8 +106,9 @@ fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize) !
         try visited.put(node.?, true);
         _ = frontier.remove(node.?);
 
-        if (node == end) {
-            return node_dist;
+        if (isEnd(grid.lines[node.?])) {
+            min_dist = @min(node_dist, min_dist);
+            found_end = true;
         }
 
         const node_level = grid.lines[node.?];
@@ -136,6 +137,9 @@ fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize) !
         }
     }
 
+    if (found_end) {
+        return min_dist;
+    }
     return SearchError.Unreachable;
 }
 
