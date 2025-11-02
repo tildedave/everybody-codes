@@ -55,8 +55,23 @@ fn isEndAnswer1(ch: u8) bool {
     return ch == 'E';
 }
 
-fn isEndAnswer3(ch: u8) bool {
-    return ch == 'S';
+const SearchContext = struct {
+    grid: util.Grid,
+};
+
+pub fn gridNeighbors(node: usize, allocator: std.mem.Allocator, l: *std.ArrayList(usize), context: SearchContext) !void {
+    var it = util.NeighborIterator{ .grid = context.grid, .idx = node };
+    while (it.next()) |ni| {
+        if (ni == '#' or ni == ' ') {
+            continue;
+        }
+
+        try l.append(allocator, it.next_idx);
+    }
+}
+
+pub fn gridDistance(n1: usize, n2: usize, context: SearchContext) u32 {
+    return distance(context.grid.lines[n1], context.grid.lines[n2]);
 }
 
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
@@ -64,83 +79,37 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     defer allocator.free(grid.lines);
 
     const start = std.mem.indexOfScalar(u8, lines, 'S').?;
-    return dijkstraSearch(allocator, grid, start, isEndAnswer1);
+    const end = std.mem.indexOfScalar(u8, lines, 'E').?;
+
+    var distances = std.AutoHashMap(usize, u32).init(allocator);
+    defer distances.deinit();
+
+    const search_context = SearchContext{ .grid = grid };
+    try util.dijkstraSearch(usize, allocator, start, &distances, search_context, gridNeighbors, gridDistance);
+
+    return distances.get(end).?;
 }
 
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
 
-    const start = std.mem.indexOfScalar(u8, lines, 'E').?;
-    return dijkstraSearch(allocator, grid, start, isEndAnswer3);
-}
-
-fn dijkstraSearch(allocator: std.mem.Allocator, grid: util.Grid, start: usize, comptime isEnd: fn (u8) bool) !u64 {
-    var distances = std.AutoHashMap(usize, u64).init(allocator);
+    var distances = std.AutoHashMap(usize, u32).init(allocator);
     defer distances.deinit();
-    var visited = std.AutoHashMap(usize, bool).init(allocator);
-    defer visited.deinit();
-    var frontier = std.AutoHashMap(usize, bool).init(allocator);
-    defer frontier.deinit();
 
-    try frontier.put(start, true);
-    try distances.put(start, 0);
+    const end = std.mem.indexOfScalar(u8, lines, 'E').?;
 
-    var min_dist: u64 = std.math.maxInt(u64);
-    var found_end = false;
+    const search_context = SearchContext{ .grid = grid };
+    try util.dijkstraSearch(usize, allocator, end, &distances, search_context, gridNeighbors, gridDistance);
 
-    while (frontier.count() > 0) {
-        var frontier_it = frontier.iterator();
+    var start_idx: ?usize = std.mem.indexOfScalar(u8, lines, 'S');
+    var min_dist: u32 = std.math.maxInt(u32);
 
-        var node_dist: u64 = std.math.maxInt(u64);
-        var node: ?usize = null;
-        while (frontier_it.next()) |e| {
-            if (distances.get(e.key_ptr.*)) |d| {
-                if (d < node_dist) {
-                    node = e.key_ptr.*;
-                    node_dist = d;
-                }
-            }
-        }
-
-        try visited.put(node.?, true);
-        _ = frontier.remove(node.?);
-
-        if (isEnd(grid.lines[node.?])) {
-            min_dist = @min(node_dist, min_dist);
-            found_end = true;
-        }
-
-        const node_level = grid.lines[node.?];
-
-        // otherwise look at the neighbors
-        var it = util.NeighborIterator{ .grid = grid, .idx = node.? };
-        while (it.next()) |ni| {
-            if (ni == '#' or ni == ' ') {
-                continue;
-            }
-
-            const d = distance(ni, node_level);
-
-            if (visited.contains(it.next_idx)) {
-                continue;
-            }
-
-            try frontier.put(it.next_idx, true);
-            if (distances.get(it.next_idx)) |neighbor_dist| {
-                if (d + node_dist < neighbor_dist) {
-                    distances.putAssumeCapacity(it.next_idx, d + node_dist);
-                }
-            } else {
-                try distances.put(it.next_idx, d + node_dist);
-            }
-        }
+    while (start_idx != null) : (start_idx = std.mem.indexOfScalarPos(u8, lines, start_idx.? + 1, 'S')) {
+        min_dist = @min(min_dist, distances.get(start_idx.?).?);
     }
 
-    if (found_end) {
-        return min_dist;
-    }
-    return SearchError.Unreachable;
+    return min_dist;
 }
 
 test "given example (part 1)" {

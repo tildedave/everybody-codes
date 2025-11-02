@@ -412,3 +412,63 @@ test "generatePermutations" {
     generatePermutations(u8, &l, &v, compareU8, &countFn);
     try expectEqual(60, v.total);
 }
+
+pub fn dijkstraSearch(
+    comptime T: type,
+    allocator: std.mem.Allocator,
+    start: T,
+    distances: *std.AutoHashMap(T, u32),
+    context: anytype,
+    neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
+    distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
+) !void {
+    var visited = std.AutoHashMap(T, bool).init(allocator);
+    defer visited.deinit();
+    var frontier = std.AutoHashMap(T, bool).init(allocator);
+    defer frontier.deinit();
+
+    try distances.put(start, 0);
+    try frontier.put(start, true);
+
+    while (frontier.count() > 0) {
+        var frontier_it = frontier.iterator();
+
+        var node_dist: u32 = std.math.maxInt(u32);
+        var node: ?T = null;
+        while (frontier_it.next()) |e| {
+            if (distances.get(e.key_ptr.*)) |d| {
+                if (d < node_dist) {
+                    node = e.key_ptr.*;
+                    node_dist = d;
+                }
+            }
+        }
+
+        try visited.put(node.?, true);
+        _ = frontier.remove(node.?);
+
+        var neighbor_list = try std.ArrayList(T).initCapacity(allocator, 0);
+        defer neighbor_list.deinit(allocator);
+        try neighbors(node.?, allocator, &neighbor_list, context);
+
+        // otherwise look at the neighbors
+        // neighbors are +-1 x, y, z
+
+        for (0..neighbor_list.items.len) |i| {
+            const n: T = neighbor_list.items[i];
+            if (visited.contains(n)) {
+                continue;
+            }
+
+            try frontier.put(n, true);
+            const d = distance(n, node.?, context);
+            if (distances.get(n)) |neighbor_dist| {
+                if (node_dist + d < neighbor_dist) {
+                    distances.putAssumeCapacity(n, node_dist + d);
+                }
+            } else {
+                try distances.put(n, node_dist + d);
+            }
+        }
+    }
+}
