@@ -486,26 +486,28 @@ pub fn Searcher(comptime T: type) type {
             context: anytype,
             neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
             distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
-            heuristic: fn (node: T) u32,
+            heuristic: fn (node: T, @TypeOf(context)) u32,
             isGoal: fn (node: T, @TypeOf(context)) bool,
         ) !void {
             var visited = std.AutoHashMap(T, bool).init(allocator);
             defer visited.deinit();
 
-            var guess_distances = std.AutoHashMap(T, u32);
+            var guess_distances = std.AutoHashMap(T, u32).init(allocator);
+            defer guess_distances.deinit();
 
             const Queue = std.PriorityQueue(T, PriorityQueueContext, comparator);
-            var frontier = Queue.init(allocator, .{ .distances = guess_distances });
+            var frontier = Queue.init(allocator, .{ .distances = &guess_distances });
             defer frontier.deinit();
 
             try distances.put(start, 0);
             try frontier.add(start);
-            try guess_distances.add(heuristic(start));
+            try guess_distances.put(start, heuristic(start, context));
 
             while (frontier.count() > 0) {
                 const node = frontier.remove();
 
                 if (isGoal(node, context)) {
+                    std.debug.print("found goal {any} {d}\n", .{ node, distances.get(node).? });
                     return;
                 }
 
@@ -522,14 +524,14 @@ pub fn Searcher(comptime T: type) type {
                     const score = node_dist + distance(node, n, context);
 
                     if (score < distances.get(n) orelse std.math.maxInt(u32)) {
-                        if (!distances.contains(n)) {
+                        const is_new = !distances.contains(n);
+                        try distances.put(n, score);
+                        try guess_distances.put(n, score + heuristic(n, context));
+                        if (is_new) {
                             try frontier.add(n);
                         } else {
                             try frontier.update(n, n);
                         }
-
-                        try distances.put(n, score);
-                        try guess_distances.put(n, score + heuristic(n));
                     }
                 }
             }
