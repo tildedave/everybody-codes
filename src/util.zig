@@ -413,6 +413,8 @@ test "generatePermutations" {
     try expectEqual(60, v.total);
 }
 
+const SearchError = error{Unreachable};
+
 pub fn Searcher(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -435,8 +437,6 @@ pub fn Searcher(comptime T: type) type {
             neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
             distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
         ) !void {
-            // const compareDistances = self.comparator;
-
             var visited = std.AutoHashMap(T, bool).init(allocator);
             defer visited.deinit();
 
@@ -457,9 +457,6 @@ pub fn Searcher(comptime T: type) type {
                 defer neighbor_list.deinit(allocator);
                 try neighbors(node, allocator, &neighbor_list, context);
 
-                // otherwise look at the neighbors
-                // neighbors are +-1 x, y, z
-
                 for (0..neighbor_list.items.len) |i| {
                     const n: T = neighbor_list.items[i];
                     if (visited.contains(n)) {
@@ -479,6 +476,65 @@ pub fn Searcher(comptime T: type) type {
                     }
                 }
             }
+        }
+
+        pub fn astar(
+            _: *Searcher(T),
+            allocator: std.mem.Allocator,
+            start: T,
+            distances: *std.AutoHashMap(T, u32),
+            context: anytype,
+            neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
+            distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
+            heuristic: fn (node: T) u32,
+            isGoal: fn (node: T, @TypeOf(context)) bool,
+        ) !void {
+            var visited = std.AutoHashMap(T, bool).init(allocator);
+            defer visited.deinit();
+
+            var guess_distances = std.AutoHashMap(T, u32);
+
+            const Queue = std.PriorityQueue(T, PriorityQueueContext, comparator);
+            var frontier = Queue.init(allocator, .{ .distances = guess_distances });
+            defer frontier.deinit();
+
+            try distances.put(start, 0);
+            try frontier.add(start);
+            try guess_distances.add(heuristic(start));
+
+            while (frontier.count() > 0) {
+                const node = frontier.remove();
+
+                if (isGoal(node, context)) {
+                    return;
+                }
+
+                const node_dist = distances.get(node).?;
+
+                try visited.put(node, true);
+
+                var neighbor_list = try std.ArrayList(T).initCapacity(allocator, 0);
+                defer neighbor_list.deinit(allocator);
+                try neighbors(node, allocator, &neighbor_list, context);
+
+                for (0..neighbor_list.items.len) |i| {
+                    const n: T = neighbor_list.items[i];
+                    const score = node_dist + distance(node, n, context);
+
+                    if (score < distances.get(n) orelse std.math.maxInt(u32)) {
+                        if (!distances.contains(n)) {
+                            try frontier.add(n);
+                        } else {
+                            try frontier.update(n, n);
+                        }
+
+                        try distances.put(n, score);
+                        try guess_distances.put(n, score + heuristic(n));
+                    }
+                }
+            }
+
+            return SearchError.Unreachable;
         }
     };
 }
