@@ -413,62 +413,72 @@ test "generatePermutations" {
     try expectEqual(60, v.total);
 }
 
-pub fn dijkstraSearch(
-    comptime T: type,
-    allocator: std.mem.Allocator,
-    start: T,
-    distances: *std.AutoHashMap(T, u32),
-    context: anytype,
-    neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
-    distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
-) !void {
-    var visited = std.AutoHashMap(T, bool).init(allocator);
-    defer visited.deinit();
-    var frontier = std.AutoHashMap(T, bool).init(allocator);
-    defer frontier.deinit();
+pub fn Searcher(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        const PriorityQueueContext = struct { distances: *std.AutoHashMap(T, u32) };
 
-    try distances.put(start, 0);
-    try frontier.put(start, true);
+        pub fn init() Self {
+            return .{};
+        }
 
-    while (frontier.count() > 0) {
-        var frontier_it = frontier.iterator();
+        fn comparator(ctx: PriorityQueueContext, a: T, b: T) std.math.Order {
+            return std.math.order(ctx.distances.get(a).?, ctx.distances.get(b).?);
+        }
 
-        var node_dist: u32 = std.math.maxInt(u32);
-        var node: ?T = null;
-        while (frontier_it.next()) |e| {
-            if (distances.get(e.key_ptr.*)) |d| {
-                if (d < node_dist) {
-                    node = e.key_ptr.*;
-                    node_dist = d;
+        pub fn dijkstra(
+            _: *Searcher(T),
+            allocator: std.mem.Allocator,
+            start: T,
+            distances: *std.AutoHashMap(T, u32),
+            context: anytype,
+            neighbors: fn (node: T, @TypeOf(allocator), *std.ArrayList(T), @TypeOf(context)) error{OutOfMemory}!void,
+            distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
+        ) !void {
+            // const compareDistances = self.comparator;
+
+            var visited = std.AutoHashMap(T, bool).init(allocator);
+            defer visited.deinit();
+
+            const Queue = std.PriorityQueue(T, PriorityQueueContext, comparator);
+            var frontier = Queue.init(allocator, .{ .distances = distances });
+            defer frontier.deinit();
+
+            try distances.put(start, 0);
+            try frontier.add(start);
+
+            while (frontier.count() > 0) {
+                const node = frontier.remove();
+                const node_dist = distances.get(node).?;
+
+                try visited.put(node, true);
+
+                var neighbor_list = try std.ArrayList(T).initCapacity(allocator, 0);
+                defer neighbor_list.deinit(allocator);
+                try neighbors(node, allocator, &neighbor_list, context);
+
+                // otherwise look at the neighbors
+                // neighbors are +-1 x, y, z
+
+                for (0..neighbor_list.items.len) |i| {
+                    const n: T = neighbor_list.items[i];
+                    if (visited.contains(n)) {
+                        continue;
+                    }
+
+                    const d = distance(n, node, context);
+                    if (distances.get(n)) |neighbor_dist| {
+                        if (node_dist + d < neighbor_dist) {
+                            distances.putAssumeCapacity(n, node_dist + d);
+                            // this is O(n) to find n unfortunately
+                            try frontier.update(n, n);
+                        }
+                    } else {
+                        try distances.put(n, node_dist + d);
+                        try frontier.add(n);
+                    }
                 }
             }
         }
-
-        try visited.put(node.?, true);
-        _ = frontier.remove(node.?);
-
-        var neighbor_list = try std.ArrayList(T).initCapacity(allocator, 0);
-        defer neighbor_list.deinit(allocator);
-        try neighbors(node.?, allocator, &neighbor_list, context);
-
-        // otherwise look at the neighbors
-        // neighbors are +-1 x, y, z
-
-        for (0..neighbor_list.items.len) |i| {
-            const n: T = neighbor_list.items[i];
-            if (visited.contains(n)) {
-                continue;
-            }
-
-            try frontier.put(n, true);
-            const d = distance(n, node.?, context);
-            if (distances.get(n)) |neighbor_dist| {
-                if (node_dist + d < neighbor_dist) {
-                    distances.putAssumeCapacity(n, node_dist + d);
-                }
-            } else {
-                try distances.put(n, node_dist + d);
-            }
-        }
-    }
+    };
 }
