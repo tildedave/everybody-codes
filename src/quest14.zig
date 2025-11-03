@@ -182,7 +182,9 @@ pub fn answer3(allocator: std.mem.Allocator, instructions: []const u8) !u32 {
         var distances = std.AutoHashMap(Coord, u32).init(allocator);
         defer distances.deinit();
 
-        try util.dijkstraSearch(Coord, allocator, start_coord, &distances, search_context, coordNeighbors, coordDistance);
+        var searcher = util.Searcher(Coord).init();
+        try searcher.dijkstra(allocator, start_coord, &distances, search_context, coordNeighbors, coordDistance);
+
         var distances_it = distances.iterator();
         while (distances_it.next()) |e| {
             const coord: Coord = e.key_ptr.*;

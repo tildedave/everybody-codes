@@ -85,7 +85,8 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     defer distances.deinit();
 
     const search_context = SearchContext{ .grid = grid };
-    try util.dijkstraSearch(usize, allocator, start, &distances, search_context, gridNeighbors, gridDistance);
+    var searcher = util.Searcher(usize).init();
+    try searcher.dijkstra(allocator, start, &distances, search_context, gridNeighbors, gridDistance);
 
     return distances.get(end).?;
 }
@@ -100,7 +101,8 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const end = std.mem.indexOfScalar(u8, lines, 'E').?;
 
     const search_context = SearchContext{ .grid = grid };
-    try util.dijkstraSearch(usize, allocator, end, &distances, search_context, gridNeighbors, gridDistance);
+    var searcher = util.Searcher(usize).init();
+    try searcher.dijkstra(allocator, end, &distances, search_context, gridNeighbors, gridDistance);
 
     var start_idx: ?usize = std.mem.indexOfScalar(u8, lines, 'S');
     var min_dist: u32 = std.math.maxInt(u32);
