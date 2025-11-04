@@ -1,9 +1,5 @@
-(* https://stackoverflow.com/questions/5774934/how-do-i-read-in-lines-from-a-text-file-in-ocaml/73019499#73019499 *)
-
 open List;;
-
-let read_lines (file_name : string) : string list =
-  In_channel.with_open_text file_name In_channel.input_lines
+open Util;;
 
 let quest1 lines =
   let names = (String.split_on_char ',' (nth lines 0)) in
@@ -74,4 +70,3 @@ print_endline "ANSWERS:";;
 print_endline (quest1 (read_lines "quest-notes/quest1-part1.txt"));;
 print_endline (quest2 (read_lines "quest-notes/quest1-part2.txt"));;
 print_endline (quest3 (read_lines "quest-notes/quest1-part3.txt"));;
-
