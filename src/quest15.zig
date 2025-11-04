@@ -40,6 +40,10 @@ fn isGoalQuest1(state: StateQuest1, ctx: SearchContextQuest1) bool {
     return state.idx == ctx.start and state.has_fruit;
 }
 
+fn shouldPruneQuest1(_: StateQuest1, _: SearchContextQuest1) bool {
+    return false;
+}
+
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u32 {
     const start_coord = std.mem.indexOfScalar(u8, lines, '.').?;
     const grid = try util.createGrid(allocator, lines);
@@ -50,12 +54,12 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u32 {
 
     const search_context = SearchContextQuest1{ .grid = grid, .start = start_coord };
     var searcher = util.Searcher(StateQuest1).init();
-    try searcher.astar(allocator, StateQuest1{ .idx = start_coord, .has_fruit = false }, &distances, search_context, neighborsQuest1, gridDistance, heuristicQuest1, isGoalQuest1);
+    try searcher.astar(allocator, StateQuest1{ .idx = start_coord, .has_fruit = false }, &distances, search_context, neighborsQuest1, gridDistance, heuristicQuest1, isGoalQuest1, shouldPruneQuest1);
 
     return distances.get(StateQuest1{ .idx = start_coord, .has_fruit = true }) orelse 0;
 }
 
-const SearchContextQuest2 = struct { grid: util.Grid, start: usize, num_fruits: u8 };
+const SearchContextQuest2 = struct { grid: util.Grid, start: usize, fruit_mask: u32, best_so_far: u32 = std.math.maxInt(u32) };
 
 const StateQuest2 = struct {
     idx: usize,
@@ -84,25 +88,23 @@ fn neighborsQuest2(state: StateQuest2, allocator: std.mem.Allocator, l: *std.Arr
 }
 
 fn isGoalQuest2(state: StateQuest2, ctx: SearchContextQuest2) bool {
-    if (state.idx != ctx.start) {
-        return false;
-    }
-    for (0..ctx.num_fruits) |n| {
-        if (state.fruits >> @intCast(n) & 0x1 != 1) {
-            return false;
-        }
-    }
-    return true;
+    return (state.idx == ctx.start and state.fruits == ctx.fruit_mask);
 }
 
-fn heuristicQuest2(state: StateQuest2, ctx: SearchContextQuest2) u32 {
+fn heuristicQuest2(state: StateQuest2, _: SearchContextQuest2) u32 {
     var total: u32 = 0;
-    for (0..ctx.num_fruits) |n| {
-        if (state.fruits >> @intCast(n) & 0x1 == 1) {
+    var mask = state.fruits;
+    while (mask != 0) : (mask = mask >> 1) {
+        if (mask & 0x1 == 1) {
             total += 1000;
         }
     }
+
     return total;
+}
+
+fn shouldPruneQuest2(_: StateQuest2, _: SearchContextQuest2) bool {
+    return false;
 }
 
 test "isGoalQuest2" {
@@ -120,22 +122,24 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u32 {
     const grid = try util.createGrid(allocator, lines);
     defer allocator.free(grid.lines);
 
-    var num_fruits: u8 = 0;
     var fruit_mask: u32 = 0;
-    while (true) : (num_fruits += 1) {
-        const fruit: u8 = 'A' + num_fruits;
-        if (std.mem.indexOfScalar(u8, lines, fruit) == null) {
-            break;
+    var fruit_ch: u8 = 'Z';
+    while (fruit_ch >= 'A') : (fruit_ch -= 1) {
+        if (std.mem.indexOfScalar(u8, lines, fruit_ch) == null) {
+            fruit_mask = fruit_mask << 1;
+        } else {
+            std.debug.print("there is a {c}\n", .{fruit_ch});
+            fruit_mask = 0x1 | (fruit_mask << 1);
         }
-        fruit_mask = 0x1 | (fruit_mask << 1);
     }
+    std.debug.print("fruit mask {d}\n", .{fruit_mask});
 
     var distances = std.AutoHashMap(StateQuest2, u32).init(allocator);
     defer distances.deinit();
 
-    const search_context = SearchContextQuest2{ .grid = grid, .start = start_coord, .num_fruits = num_fruits };
+    const search_context = SearchContextQuest2{ .grid = grid, .start = start_coord, .fruit_mask = fruit_mask };
     var searcher = util.Searcher(StateQuest2).init();
-    try searcher.astar(allocator, StateQuest2{ .idx = start_coord, .fruits = 0 }, &distances, search_context, neighborsQuest2, gridDistanceQuest2, heuristicQuest2, isGoalQuest2);
+    try searcher.astar(allocator, StateQuest2{ .idx = start_coord, .fruits = 0 }, &distances, search_context, neighborsQuest2, gridDistanceQuest2, heuristicQuest2, isGoalQuest2, shouldPruneQuest2);
 
     return distances.get(StateQuest2{ .idx = start_coord, .fruits = fruit_mask }) orelse 0;
 }

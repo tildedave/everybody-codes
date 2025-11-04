@@ -488,10 +488,8 @@ pub fn Searcher(comptime T: type) type {
             distance: fn (node1: T, node2: T, @TypeOf(context)) u32,
             heuristic: fn (node: T, @TypeOf(context)) u32,
             isGoal: fn (node: T, @TypeOf(context)) bool,
+            shouldPrune: fn (node: T, @TypeOf(context)) bool,
         ) !void {
-            var visited = std.AutoHashMap(T, bool).init(allocator);
-            defer visited.deinit();
-
             var guess_distances = std.AutoHashMap(T, u32).init(allocator);
             defer guess_distances.deinit();
 
@@ -511,9 +509,11 @@ pub fn Searcher(comptime T: type) type {
                     return;
                 }
 
-                const node_dist = distances.get(node).?;
+                if (shouldPrune(node, context)) {
+                    continue;
+                }
 
-                try visited.put(node, true);
+                const node_dist = distances.get(node).?;
 
                 var neighbor_list = try std.ArrayList(T).initCapacity(allocator, 0);
                 defer neighbor_list.deinit(allocator);
