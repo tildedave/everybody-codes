@@ -1,2 +1,6 @@
 (library
- (name everybodycodes))
+ (name everybodycodes)
+ (libraries base)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test ppx_assert)))
