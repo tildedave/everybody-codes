@@ -2,3 +2,4 @@
 zig-out
 quest-notes
 .DS_Store
+_build
