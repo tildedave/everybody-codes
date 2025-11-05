@@ -1,4 +1,5 @@
 const std = @import("std");
+const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const util = @import("util.zig");
 
@@ -65,8 +66,50 @@ fn spinWheel(wheel: *Wheel) void {
     }
 }
 
-fn byteCoinsWon(lines: []const u8, wheel: *Wheel) u32 {
-    const reading = wheelReading(lines, wheel);
+fn byteCoinsWon(reading: []const u8, muzzles: bool) u32 {
+    var counts: [7]u8 = std.mem.zeroes([7]u8);
+
+    for (reading) |r| {
+        if (r == ' ') {
+            continue;
+        }
+        counts[
+            switch (r) {
+                '>' => 0,
+                '<' => 1,
+                '^' => 2,
+                '_' => 3,
+                '-' => 4,
+                '.' => 5,
+                ',' => 6,
+                else => unreachable,
+            }
+        ] += 1;
+    }
+
+    var coins: u32 = 0;
+    var i: u8 = 0;
+    for (counts) |c| {
+        if (!muzzles and i > 2) {
+            break;
+        }
+        if (c >= 3) {
+            coins += c - 2;
+        }
+        i += 1;
+    }
+
+    return coins;
+}
+
+test "byteCoinsWon" {
+    try expectEqual(1, byteCoinsWon(">.- -.- ^_^", true));
+    try expectEqual(1, byteCoinsWon("-_- >.> >.<", true));
+    try expectEqual(2, byteCoinsWon("^_^ ^_^ >.<", true));
+    try expectEqual(1, byteCoinsWon(">.- -.^ ^,-", true));
+    try expectEqual(2, byteCoinsWon("-_- -.- ^_^", true));
+    try expectEqual(2, byteCoinsWon("^_^ -.- ^_^", true));
+    try expectEqual(5, byteCoinsWon("^_^ ^_^ ^_^", true));
 }
 
 pub fn answer1(lines: []const u8) ![16]u8 {
@@ -86,5 +129,5 @@ pub fn answer1(lines: []const u8) ![16]u8 {
 
 test "given example" {
     const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- >.<\n    -.^ ^_^\n    >.>    \n";
-    try expectEqualStrings(">.- -.- ^,- ", &try answer1(lines));
+    try expectEqualStrings(">.- -.- ^,- ", (&try answer1(lines))[0..12]);
 }
