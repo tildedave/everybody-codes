@@ -1,4 +1,5 @@
 open Base
+(* open Stdio *)
 
 let complex_add p1 p2 =
   let x1, y1 = p1 in
@@ -56,15 +57,15 @@ let parse_number s = Caml.Scanf.sscanf s "A=[%d, %d]" (fun a b -> (a, b))
 let%test_unit "parse_number" =
   [%test_eq: int * int] (25, 9) (parse_number "A=[25,9]")
 
-let part1 l =
-  let a = parse_number (List.hd_exn l) in
+let part1 n =
+  let a = parse_number n in
   let x, y =
     List.fold_left (List.range 0 3) ~init:(0, 0) ~f:(fun result _ ->
         complex_add a (complex_div (complex_mult result result) (10, 10)))
   in
   Printf.sprintf "[%d,%d]" x y
 
-let%test_unit "part 1" = [%test_eq: string] "[357,862]" (part1 [ "A=[25,9]" ])
+let%test_unit "part 1" = [%test_eq: string] "[357,862]" (part1 "A=[25,9]")
 
 let should_engrave p =
   let quit_loop, i, result = (ref false, ref 0, ref (0, 0)) in
@@ -129,16 +130,34 @@ let%test_unit "should_engrave 5 (false)" =
     (false, (-6387697, -1621945), 100)
     (should_engrave (35630, -64830))
 
-(*
-  let a = parse_number (List.hd_exn l) in
-  let x, y =
-    List.fold_left (List.range 0 3) ~init:(0, 0) ~f:(fun result _ ->
-        complex_add a (complex_div (complex_mult result result) (10, 10)))
-  in
-  Printf.sprintf "[%d,%d]" x y *)
-
 (* mandelbrot set lol *)
-(*
-let part2 l =
-  let (x_start, y_start) = parse_number (List.hd_exn l) in
-  let (x_end, y_end) = (x_start + 100, y_start + 100) in *)
+
+let mandelbrot delta n =
+  let x_start, y_start = parse_number n in
+  let x_end, y_end = (x_start + 1000, y_start + 1000) in
+  let x_delta = (x_end - x_start) / delta in
+  let y_delta = (y_end - y_start) / delta in
+  let b = Buffer.create (delta * delta) in
+  let num_engraved = ref 0 in
+  let y = ref y_start in
+  while !y <= y_end do
+    let x = ref x_start in
+    while !x <= x_end do
+      (match should_engrave (!x, !y) with
+      | true, _, _ ->
+          num_engraved := !num_engraved + 1;
+          Buffer.add_char b '#'
+      | false, _, _ -> Buffer.add_char b '.');
+      x := !x + x_delta
+    done;
+    y := !y + y_delta;
+    Buffer.add_char b '\n'
+  done;
+  (Int.to_string !num_engraved, Buffer.contents b)
+
+let part2 n = fst (mandelbrot 100 n)
+let part3 n = fst (mandelbrot 1000 n)
+let%test_unit "part 2" = [%test_eq: string] "4076" (part2 "A=[35300,-64910]")
+let%test_unit "part 3" = [%test_eq: string] "406954" (part3 "A=[35300,-64910]")
+
+(* let _ = Stdio.print_string (snd (mandelbrot 1000 "A=[-79715,-16616]")) *)

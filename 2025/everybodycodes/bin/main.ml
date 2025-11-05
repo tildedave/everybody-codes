@@ -3,9 +3,12 @@
 open Everybodycodes;;
 
 print_endline
-  (match (Sys.argv.(1), Sys.argv.(2)) with
-  | "quest1", "1" -> Quest1.part1 (Util.read_lines Sys.argv.(3))
-  | "quest1", "2" -> Quest1.part2 (Util.read_lines Sys.argv.(3))
-  | "quest1", "3" -> Quest1.part3 (Util.read_lines Sys.argv.(3))
-  | "quest2", "1" -> Quest2.part1 (Util.read_lines Sys.argv.(3))
-  | _ -> failwith "invalid argument")
+  (let lines = Util.read_lines Sys.argv.(3) in
+   match (Sys.argv.(1), Sys.argv.(2)) with
+   | "quest1", "1" -> Quest1.part1 lines
+   | "quest1", "2" -> Quest1.part2 lines
+   | "quest1", "3" -> Quest1.part3 lines
+   | "quest2", "1" -> Quest2.part1 (List.hd lines)
+   | "quest2", "2" -> Quest2.part2 (List.hd lines)
+   | "quest2", "3" -> Quest2.part3 (List.hd lines)
+   | _ -> failwith "invalid argument")
