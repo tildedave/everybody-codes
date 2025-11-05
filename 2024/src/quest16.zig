@@ -60,9 +60,23 @@ fn wheelReading(
     return result;
 }
 
-fn spinWheel(wheel: *Wheel) void {
+fn rightLever(wheel: *Wheel) void {
     for (0..wheel.num_wheels) |i| {
         wheel.position[i] = (wheel.position[i] + wheel.increment[i]) % wheel.length[i];
+    }
+}
+
+fn leftLever(wheel: *Wheel, dpos: i8) void {
+    for (0..wheel.num_wheels) |i| {
+        if (dpos == -1) {
+            if (wheel.position[i] == 0) {
+                wheel.position[i] = wheel.length[i] - 1;
+            } else {
+                wheel.position[i] = (wheel.position[i] - 1) % wheel.length[i];
+            }
+        } else if (dpos == 1) {
+            wheel.position[i] = (wheel.position[i] + 1) % wheel.length[i];
+        }
     }
 }
 
@@ -117,7 +131,7 @@ pub fn answer1(lines: []const u8) ![40]u8 {
     var wheel = try parseWheel(lines);
 
     for (0..100) |_| {
-        spinWheel(&wheel);
+        rightLever(&wheel);
     }
 
     return wheelReading(lines, &wheel);
@@ -160,7 +174,7 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
             }
         }
 
-        spinWheel(&wheel);
+        rightLever(&wheel);
         const reading = wheelReading(lines, &wheel);
         const coins = byteCoinsWon(&reading, false);
         coins_won += coins;
@@ -177,4 +191,84 @@ test "given example (part 1)" {
 test "given example (part 2)" {
     const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- >.<\n    -.^ ^_^\n    >.>    \n";
     try expectEqual(280014668134, try answer2(std.testing.allocator, lines));
+}
+
+// part 3 is sort of a graph algo.  total space of possible spaces is small (length1 * length2 * ...)
+// problem is that the number of paths through it are too large (3^256).  can't try every path.
+// feels like some aggressive pruning will be fine.  and we can run through the state trying to optimize and minimize (two runs).
+// sadly must do a bunch of copying
+
+const QueueItem = struct {
+    position: [10]u8,
+    coins_so_far: u64,
+    num_left: u64,
+};
+
+fn pQueueMax(_: void, a: QueueItem, b: QueueItem) std.math.Order {
+    return std.math.order(a.coins_so_far, b.coins_so_far);
+}
+
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) !u64 {
+    // seems like this answer doesn't use muzzle = false
+    var wheel = try parseWheel(lines);
+
+    var max_so_far: []u64 = try allocator.alloc(u64, num_pulls + 1);
+    for (0..num_pulls + 1) |i| {
+        max_so_far[i] = std.math.minInt(u64);
+    }
+    defer allocator.free(max_so_far);
+
+    // OK so we maintain a tree of states
+    // then we go backwards.  Each state has a "max left from this position" / "min left from this position"
+    // so this is easy
+
+    var queue = std.PriorityQueue(QueueItem, void, pQueueMax).init(allocator, {});
+    defer queue.deinit();
+
+    try queue.add(QueueItem{ .coins_so_far = 0, .position = wheel.position, .num_left = num_pulls });
+    var nodes: u32 = 0;
+    while (queue.count() > 0) {
+        nodes += 1;
+        const item = queue.remove();
+
+        wheel.position = item.position;
+
+        if (item.coins_so_far > max_so_far[item.num_left]) {
+            max_so_far[item.num_left] = item.coins_so_far;
+        }
+
+        if (item.num_left == 0) {
+            continue;
+        }
+
+        std.debug.print("{d} vs {d}\n", .{ max_so_far[item.num_left], item.coins_so_far });
+        std.debug.print("{d}\n", .{max_so_far[item.num_left] - item.coins_so_far});
+
+        if (max_so_far[item.num_left] > item.coins_so_far + 2 * wheel.num_wheels) {
+            // prune
+            continue;
+        }
+
+        for ([3]i8{ 0, -1, 1 }) |dpos| {
+            var queue_item = QueueItem{ .coins_so_far = item.coins_so_far, .num_left = item.num_left - 1, .position = std.mem.zeroes([10]u8) };
+            @memcpy(&queue_item.position, &item.position);
+            @memcpy(&wheel.position, &queue_item.position);
+            leftLever(&wheel, dpos);
+            rightLever(&wheel);
+            const reading = wheelReading(lines, &wheel);
+            const coins = byteCoinsWon(&reading, true);
+            queue_item.coins_so_far += coins;
+            queue_item.position = wheel.position;
+
+            try queue.add(queue_item);
+        }
+    }
+
+    std.debug.print("{any} {d} nodes\n", .{ max_so_far, nodes });
+    return max_so_far[0];
+}
+
+test "given example (part 3)" {
+    const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- ^.^\n    -.^ >.<\n    >.>    \n";
+    try expectEqual(26, try answer3(std.testing.allocator, lines, 10));
 }
