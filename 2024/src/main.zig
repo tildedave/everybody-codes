@@ -204,5 +204,8 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "1")) {
             std.debug.print("{s}\n", .{try quest16.answer1(lines)});
         }
+        if (std.mem.eql(u8, part, "2")) {
+            std.debug.print("{d}\n", .{try quest16.answer2(allocator, lines)});
+        }
     }
 }

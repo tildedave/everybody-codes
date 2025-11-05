@@ -5,9 +5,9 @@ const util = @import("util.zig");
 
 const Wheel = struct {
     num_wheels: u8 = 0,
-    increment: [4]u8 = [4]u8{ 0, 0, 0, 0 },
-    position: [4]u8 = [4]u8{ 0, 0, 0, 0 },
-    length: [4]u8 = [4]u8{ 0, 0, 0, 0 },
+    increment: [10]u8 = std.mem.zeroes([10]u8),
+    position: [10]u8 = std.mem.zeroes([10]u8),
+    length: [10]u8 = std.mem.zeroes([10]u8),
     line_length: usize = 0,
     cycles_start: usize = 0,
 };
@@ -46,9 +46,9 @@ fn parseWheel(lines: []const u8) !Wheel {
 fn wheelReading(
     lines: []const u8,
     wheel: *const Wheel,
-) [16]u8 {
+) [40]u8 {
     const trimmed_lines = lines[wheel.cycles_start..];
-    var result: [16]u8 = std.mem.zeroes([16]u8);
+    var result: [40]u8 = std.mem.zeroes([40]u8);
     var idx: usize = 0;
     for (0..wheel.num_wheels) |i| {
         const start = wheel.line_length * wheel.position[i] + (i * 4);
@@ -67,32 +67,28 @@ fn spinWheel(wheel: *Wheel) void {
 }
 
 fn byteCoinsWon(reading: []const u8, muzzles: bool) u32 {
-    var counts: [7]u8 = std.mem.zeroes([7]u8);
+    var counts: [255]u8 = std.mem.zeroes([255]u8);
 
+    var min_c: u8 = std.math.maxInt(u8);
+    var max_c: u8 = std.math.minInt(u8);
+    var i: u8 = 0;
+    // std.debug.print("bazinga {s} {any}\n", .{ reading, counts });
     for (reading) |r| {
-        if (r == ' ') {
-            continue;
-        }
-        counts[
-            switch (r) {
-                '>' => 0,
-                '<' => 1,
-                '^' => 2,
-                '_' => 3,
-                '-' => 4,
-                '.' => 5,
-                ',' => 6,
-                else => unreachable,
+        if (r != ' ' and r != 0) {
+            if (!muzzles and (i % 2) != 0) {} else {
+                // std.debug.print("{c} {d} {d}\n", .{ r, r, counts[r] + 1 });
+                counts[r] += 1;
             }
-        ] += 1;
+        }
+
+        i += 1;
+        min_c = @min(min_c, r);
+        max_c = @max(max_c, r);
     }
 
     var coins: u32 = 0;
-    var i: u8 = 0;
-    for (counts) |c| {
-        if (!muzzles and i > 2) {
-            break;
-        }
+    i = 0;
+    for (counts[min_c .. max_c + 1]) |c| {
         if (c >= 3) {
             coins += c - 2;
         }
@@ -110,24 +106,75 @@ test "byteCoinsWon" {
     try expectEqual(2, byteCoinsWon("-_- -.- ^_^", true));
     try expectEqual(2, byteCoinsWon("^_^ -.- ^_^", true));
     try expectEqual(5, byteCoinsWon("^_^ ^_^ ^_^", true));
+
+    try expectEqual(1, byteCoinsWon(">.- -.- ^_^", false));
 }
 
-pub fn answer1(lines: []const u8) ![16]u8 {
+pub fn answer1(lines: []const u8) ![40]u8 {
     // my input only has 4, so this is a way to avoid allocations
     // assumption: we have trailing whitespace (I've fixed my input)
 
     var wheel = try parseWheel(lines);
 
     for (0..100) |_| {
-        // std.debug.print("{s}\n", .{wheelReading(lines, &wheel)});
         spinWheel(&wheel);
     }
-    // std.debug.print("{s}\n", .{wheelReading(lines, &wheel)});
 
     return wheelReading(lines, &wheel);
 }
 
-test "given example" {
+pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
+    var wheel = try parseWheel(lines);
+
+    const LoopEntry = struct {
+        idx: u64,
+        coins_won: u64,
+    };
+
+    var map = std.AutoHashMap([10]u8, LoopEntry).init(allocator);
+    defer map.deinit();
+
+    var coins_won: u64 = 0;
+    var i: u64 = 0;
+    const num_loops = 202420242024;
+    var found_cycle = false;
+    while (i < num_loops) : (i += 1) {
+        // std.debug.print("{d}: {d}\n", .{ i, coins_won });
+
+        if (!found_cycle) {
+            if (map.get(wheel.position)) |e| {
+                const coin_delta = coins_won - e.coins_won;
+                const idx_delta = i - e.idx;
+                // std.debug.print("loop after {d} iterations, previous was {d}, {d} net coins ({d} vs {d})\n", .{ i, e.idx, coin_delta, coins_won, e.coins_won });
+
+                const loops_left = num_loops - i;
+                const num_times = loops_left / idx_delta;
+                // std.debug.print("repeat {d} times\n", .{num_times});
+
+                i += idx_delta * num_times;
+                coins_won += coin_delta * num_times;
+                found_cycle = true;
+                // std.debug.print("{d}: {d}\n", .{ i, coins_won });
+            } else {
+                try map.put(wheel.position, LoopEntry{ .coins_won = coins_won, .idx = i });
+            }
+        }
+
+        spinWheel(&wheel);
+        const reading = wheelReading(lines, &wheel);
+        const coins = byteCoinsWon(&reading, false);
+        coins_won += coins;
+    }
+
+    return coins_won;
+}
+
+test "given example (part 1)" {
     const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- >.<\n    -.^ ^_^\n    >.>    \n";
     try expectEqualStrings(">.- -.- ^,- ", (&try answer1(lines))[0..12]);
+}
+
+test "given example (part 2)" {
+    const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- >.<\n    -.^ ^_^\n    >.>    \n";
+    try expectEqual(280014668134, try answer2(std.testing.allocator, lines));
 }
