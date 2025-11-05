@@ -7,4 +7,5 @@ print_endline
   | "quest1", "1" -> Quest1.part1 (Util.read_lines Sys.argv.(3))
   | "quest1", "2" -> Quest1.part2 (Util.read_lines Sys.argv.(3))
   | "quest1", "3" -> Quest1.part3 (Util.read_lines Sys.argv.(3))
+  | "quest2", "1" -> Quest2.part1 (Util.read_lines Sys.argv.(3))
   | _ -> failwith "invalid argument")
