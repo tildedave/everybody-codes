@@ -208,16 +208,16 @@ fn pQueueMax(_: void, a: QueueItem, b: QueueItem) std.math.Order {
     return std.math.order(a.coins_so_far, b.coins_so_far);
 }
 
-pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) !u64 {
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) !?struct { u64, u64 } {
     // seems like this answer doesn't use muzzle = false
     var wheel = try parseWheel(lines);
     const starting_pos = wheel.position;
 
     var reverse_increment: [10]u8 = std.mem.zeroes([10]u8);
     for (0..wheel.num_wheels) |i| {
-        reverse_increment[i] = wheel.length[i] - wheel.increment[i];
+        reverse_increment[i] = wheel.length[i] - (wheel.increment[i] % wheel.length[i]);
     }
-    var reverse_wheel = Wheel{ .cycles_start = wheel.cycles_start, .length = wheel.length, .line_length = wheel.line_length, .increment = reverse_increment };
+    var reverse_wheel = Wheel{ .cycles_start = wheel.cycles_start, .length = wheel.length, .line_length = wheel.line_length, .increment = reverse_increment, .num_wheels = wheel.num_wheels };
 
     // OK so we maintain a tree of states
     // then we go backwards.  Each state has a "max left from this position" / "min left from this position"
@@ -253,22 +253,26 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) 
         defer _states.deinit(allocator);
         states = next_states;
     }
+    std.debug.print("state generation done \n", .{});
 
     // states now includes every state possible.  first we populate the $$$ per state as an initial.
+    var i: u64 = 0;
     for (states.items) |state| {
         wheel.position = state;
         const reading = wheelReading(lines, &wheel);
         const coins = byteCoinsWon(&reading, true);
         try map.put(HistoryEntry{ .position = state, .pulls_left = num_pulls }, MinMaxEntry{ .max = coins, .min = coins });
+        i += 1;
     }
+    std.debug.print("map population done \n", .{});
 
     // so we go through every state.
     var pulls_left = num_pulls;
     while (pulls_left > 0) : (pulls_left -= 1) {
+        std.debug.print("pull {d}\n", .{pulls_left});
         for (states.items) |state| {
             for ([3]i8{ 0, -1, 1 }) |dpos| {
                 reverse_wheel.position = state;
-                // const initial_reading = wheelReading(lines, &reverse_wheel);
                 const prev = HistoryEntry{ .position = state, .pulls_left = pulls_left };
                 const last_entry = map.get(prev).?;
 
@@ -276,7 +280,6 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) 
                 rightLever(&reverse_wheel);
 
                 const reading = wheelReading(lines, &reverse_wheel);
-                std.debug.print("{s} {any}\n", .{ &reading, reverse_wheel.position });
                 const coins = byteCoinsWon(&reading, true);
 
                 const entry = HistoryEntry{ .position = reverse_wheel.position, .pulls_left = pulls_left - 1 };
@@ -290,29 +293,29 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) 
                     }
                     map.putAssumeCapacity(entry, _e);
                 } else {
-                    try map.put(entry, MinMaxEntry{ .max = coins, .min = coins });
+                    try map.put(entry, MinMaxEntry{ .max = coins + last_entry.max, .min = coins + last_entry.min });
                 }
             }
         }
     }
 
-    var it = map.iterator();
-    while (it.next()) |e| {
-        wheel.position = e.key_ptr.*.position;
-        const reading = wheelReading(lines, &wheel);
-
-        std.debug.print("{d}: {s} - min {d} max {d}\n", .{ e.key_ptr.pulls_left, reading, e.value_ptr.min, e.value_ptr.max });
-    }
-
     const first_entry = HistoryEntry{ .position = starting_pos, .pulls_left = 0 };
     if (map.get(first_entry)) |e| {
-        std.debug.print("{d} {d}\n", .{ e.max, e.min });
+        wheel.position = starting_pos;
+
+        // we've overcounted by the first one
+        const reading = wheelReading(lines, &wheel);
+        const coins = byteCoinsWon(&reading, true);
+
+        std.debug.print("position coins = {d} | {d} {d}\n", .{ coins, e.max - coins, e.min - coins });
+        return .{ e.max - coins, e.min - coins };
     }
 
-    return 0;
+    return null;
 }
 
 test "given example (part 3)" {
     const lines = "1,2,3\n\n^_^ -.- ^,-\n>.- ^_^ >.<\n-_- -.- ^.^\n    -.^ >.<\n    >.>    \n";
-    try expectEqual(26, try answer3(std.testing.allocator, lines, 1));
+    try expectEqual(.{ 4, 2 }, try answer3(std.testing.allocator, lines, 1));
+    try expectEqual(.{ 9, 2 }, try answer3(std.testing.allocator, lines, 256));
 }
