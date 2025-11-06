@@ -6,7 +6,6 @@ const util = @import("util.zig");
 const Wheel = struct {
     num_wheels: u8 = 0,
     increment: [10]u8 = std.mem.zeroes([10]u8),
-    position: [10]u8 = std.mem.zeroes([10]u8),
     length: [10]u8 = std.mem.zeroes([10]u8),
     line_length: usize = 0,
     cycles_start: usize = 0,
@@ -61,24 +60,33 @@ fn wheelReading(
     return result;
 }
 
-fn rightLever(wheel: *Wheel) void {
+fn rightLever(wheel: *const Wheel, position: *const [10]u8) [10]u8 {
+    var next_position = std.mem.zeroes([10]u8);
     for (0..wheel.num_wheels) |i| {
-        wheel.position[i] = (wheel.position[i] + wheel.increment[i]) % wheel.length[i];
+        next_position[i] = (position[i] + wheel.increment[i]) % wheel.length[i];
     }
+
+    return next_position;
 }
 
-fn leftLever(wheel: *Wheel, dpos: i8) void {
+fn leftLever(wheel: *const Wheel, position: *const [10]u8, dpos: i8) [10]u8 {
+    var next_position = std.mem.zeroes([10]u8);
+
     for (0..wheel.num_wheels) |i| {
         if (dpos == -1) {
-            if (wheel.position[i] == 0) {
-                wheel.position[i] = wheel.length[i] - 1;
+            if (position[i] == 0) {
+                next_position[i] = wheel.length[i] - 1;
             } else {
-                wheel.position[i] = (wheel.position[i] - 1) % wheel.length[i];
+                next_position[i] = (position[i] - 1) % wheel.length[i];
             }
         } else if (dpos == 1) {
-            wheel.position[i] = (wheel.position[i] + 1) % wheel.length[i];
+            next_position[i] = (position[i] + 1) % wheel.length[i];
+        } else {
+            next_position[i] = position[i];
         }
     }
+
+    return next_position;
 }
 
 fn byteCoinsWon(reading: []const u8, muzzles: bool) u32 {
@@ -122,23 +130,28 @@ test "byteCoinsWon" {
     try expectEqual(2, byteCoinsWon("^_^ -.- ^_^", true));
     try expectEqual(5, byteCoinsWon("^_^ ^_^ ^_^", true));
 
+    try expectEqual(1, byteCoinsWon(">.- -.- >.<", false));
     try expectEqual(1, byteCoinsWon(">.- -.- ^_^", false));
+    try expectEqual(2, byteCoinsWon("-_- -.^ ^,-", false));
+    try expectEqual(4, byteCoinsWon("^_^ ^_^ ^_^", false));
 }
 
 pub fn answer1(lines: []const u8) ![40]u8 {
     // my input only has 4, so this is a way to avoid allocations
     // assumption: we have trailing whitespace (I've fixed my input)
 
+    var position = std.mem.zeroes([10]u8);
     var wheel = try parseWheel(lines);
 
     for (0..100) |_| {
-        rightLever(&wheel);
+        position = rightLever(&wheel, &position);
     }
 
-    return wheelReading(lines, &wheel, &wheel.position);
+    return wheelReading(lines, &wheel, &position);
 }
 
 pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
+    var position = std.mem.zeroes([10]u8);
     var wheel = try parseWheel(lines);
 
     const LoopEntry = struct {
@@ -157,7 +170,7 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
         // std.debug.print("{d}: {d}\n", .{ i, coins_won });
 
         if (!found_cycle) {
-            if (map.get(wheel.position)) |e| {
+            if (map.get(position)) |e| {
                 const coin_delta = coins_won - e.coins_won;
                 const idx_delta = i - e.idx;
                 // std.debug.print("loop after {d} iterations, previous was {d}, {d} net coins ({d} vs {d})\n", .{ i, e.idx, coin_delta, coins_won, e.coins_won });
@@ -171,12 +184,12 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
                 found_cycle = true;
                 // std.debug.print("{d}: {d}\n", .{ i, coins_won });
             } else {
-                try map.put(wheel.position, LoopEntry{ .coins_won = coins_won, .idx = i });
+                try map.put(position, LoopEntry{ .coins_won = coins_won, .idx = i });
             }
         }
 
-        rightLever(&wheel);
-        const reading = wheelReading(lines, &wheel, &wheel.position);
+        position = rightLever(&wheel, &position);
+        const reading = wheelReading(lines, &wheel, &position);
         const coins = byteCoinsWon(&reading, false);
         coins_won += coins;
     }
@@ -199,16 +212,6 @@ test "given example (part 2)" {
 // feels like some aggressive pruning will be fine.  and we can run through the state trying to optimize and minimize (two runs).
 // sadly must do a bunch of copying
 
-const QueueItem = struct {
-    position: [10]u8,
-    coins_so_far: u64,
-    num_left: u64,
-};
-
-fn pQueueMax(_: void, a: QueueItem, b: QueueItem) std.math.Order {
-    return std.math.order(a.coins_so_far, b.coins_so_far);
-}
-
 const State = struct {
     position: [10]u8,
     pulls_left: u32,
@@ -225,10 +228,9 @@ fn computeState(lines: []const u8, wheel: *Wheel, map: *std.AutoHashMap(State, M
         return r;
     }
 
-    const reading = wheelReading(lines, wheel, &position);
+    // const reading = wheelReading(lines, wheel, &position);
     // std.debug.print("{d}: {s}\n", .{ pulls_left, reading });
     if (pulls_left == 0) {
-        // std.debug.print("--> terminal\n", .{});
         const r = MinMaxResult{ .max = 0, .min = 0 };
         try map.put(state, r);
 
@@ -238,16 +240,15 @@ fn computeState(lines: []const u8, wheel: *Wheel, map: *std.AutoHashMap(State, M
     var min_coins: u64 = std.math.maxInt(u64);
     var max_coins: u64 = std.math.minInt(u64);
 
-    for ([3]i8{ 0, -1, 1 }) |dpos| {
-        wheel.position = position;
-        leftLever(wheel, dpos);
-        rightLever(wheel);
+    for ([3]i8{ 0, 1, -1 }) |dpos| {
+        const left_position = leftLever(wheel, &position, dpos);
+        const next_position = rightLever(wheel, &left_position);
 
-        const _reading = wheelReading(lines, wheel, &wheel.position);
+        // const _left_reading = wheelReading(lines, wheel, &left_position);
+        const _reading = wheelReading(lines, wheel, &next_position);
         const coins = byteCoinsWon(&_reading, false);
-
-        const r = try computeState(lines, wheel, map, wheel.position, pulls_left - 1);
-        std.debug.print("{d}: {s} --> {s} (max: {d}, min: {d})\n", .{ pulls_left, reading, _reading, r.max + coins, r.min + coins });
+        const r = try computeState(lines, wheel, map, next_position, pulls_left - 1);
+        // std.debug.print("{d}: {s} ({any}) {s} ({any}) {s} ({any}) (coins: {d}, max: {d}, min: {d})\n", .{ pulls_left, reading, position, _left_reading, left_position, _reading, next_position, coins, r.max + coins, r.min + coins });
 
         max_coins = @max(r.max + coins, max_coins);
         min_coins = @min(r.min + coins, min_coins);
@@ -255,15 +256,14 @@ fn computeState(lines: []const u8, wheel: *Wheel, map: *std.AutoHashMap(State, M
     const r = MinMaxResult{ .max = max_coins, .min = min_coins };
     try map.put(state, r);
 
-    std.debug.print("{d}: {s} ({d} max, {d} min)\n", .{ pulls_left, reading, r.max, r.min });
+    // std.debug.print("{d}: {s} ({d} max, {d} min)\n", .{ pulls_left, reading, r.max, r.min });
 
     return r;
 }
 
 pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) !?struct { u64, u64 } {
-    // seems like this answer doesn't use muzzle = false
+    // seems like this answer doesn't use muzzle = false j/k
     var wheel = try parseWheel(lines);
-    const starting_pos = wheel.position;
 
     // OK so we maintain a tree of states
     // then we go backwards.  Each state has a "max left from this position" / "min left from this position"
@@ -272,7 +272,7 @@ pub fn answer3(allocator: std.mem.Allocator, lines: []const u8, num_pulls: u32) 
     var map = std.AutoHashMap(State, MinMaxResult).init(allocator);
     defer map.deinit();
 
-    const r = try computeState(lines, &wheel, &map, starting_pos, num_pulls);
+    const r = try computeState(lines, &wheel, &map, std.mem.zeroes([10]u8), num_pulls);
     return .{ r.max, r.min };
 }
 
@@ -282,4 +282,6 @@ test "given example (part 3)" {
     try expectEqual(.{ 6, 1 }, try answer3(std.testing.allocator, lines, 2));
     try expectEqual(.{ 9, 2 }, try answer3(std.testing.allocator, lines, 3));
     try expectEqual(.{ 26, 5 }, try answer3(std.testing.allocator, lines, 10));
+    try expectEqual(.{ 627, 128 }, try answer3(std.testing.allocator, lines, 256));
+    try expectEqual(.{ 4948, 1012 }, try answer3(std.testing.allocator, lines, 2024));
 }
