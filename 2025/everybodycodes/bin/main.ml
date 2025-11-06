@@ -11,4 +11,7 @@ print_endline
    | "quest2", "1" -> Quest2.part1 (List.hd lines)
    | "quest2", "2" -> Quest2.part2 (List.hd lines)
    | "quest2", "3" -> Quest2.part3 (List.hd lines)
+   | "quest3", "1" -> Quest3.part1 (List.hd lines)
+   | "quest3", "2" -> Quest3.part2 (List.hd lines)
+   | "quest3", "3" -> Quest3.part3 (List.hd lines)
    | _ -> failwith "invalid argument")
