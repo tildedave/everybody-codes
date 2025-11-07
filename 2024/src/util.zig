@@ -552,27 +552,33 @@ pub fn DisjointSet(comptime T: type) type {
             parent: ?*Node,
         };
 
-        items: std.ArrayList(Node),
+        items: std.ArrayList(*Node),
         allocator: std.mem.Allocator,
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator) !Self {
             return .{
-                .items = try std.ArrayList(Node).initCapacity(allocator, 0),
+                .items = try std.ArrayList(*Node).initCapacity(allocator, 0),
                 .allocator = allocator,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.items.deinit(self.allocator);
+            // for (self.items.items) |item| {
+            //     self.allocator.destroy(item);
+            // }
         }
 
         pub fn makeSet(self: *Self, elem: T) !*Node {
-            const list = Node{ .elem = elem, .parent = null };
-            try self.items.append(self.allocator, list);
+            const node = try self.allocator.create(Node);
+            node.elem = elem;
+            node.parent = null;
 
-            return &self.items.items[self.items.items.len - 1];
+            try self.items.append(self.allocator, node);
+
+            return node;
         }
 
         pub fn find(_: Self, elem: *Node) *Node {
