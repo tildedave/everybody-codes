@@ -104,8 +104,6 @@ fn constellations(allocator: std.mem.Allocator, lines: []const u8, brilliant: bo
 
     var it_msg_weights = mst_weight_map.iterator();
     while (it_msg_weights.next()) |a| {
-        std.debug.print("{any}\n", .{a});
-
         try totals.append(allocator, 1 + a.value_ptr.@"0" + a.value_ptr.@"1");
     }
     std.mem.sort(u64, totals.items, {}, comptime std.sort.desc(u64));

@@ -565,10 +565,10 @@ pub fn DisjointSet(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            for (self.items.items) |item| {
+                self.allocator.destroy(item);
+            }
             self.items.deinit(self.allocator);
-            // for (self.items.items) |item| {
-            //     self.allocator.destroy(item);
-            // }
         }
 
         pub fn makeSet(self: *Self, elem: T) !*Node {
