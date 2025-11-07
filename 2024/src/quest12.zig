@@ -35,10 +35,10 @@ fn fireGrid(
         }
 
         if (ry >= 0) {
-            const ridx = util.index(grid, rx, @intCast(ry));
+            const ridx = util.index(&grid, rx, @intCast(ry));
             if (grid.lines[ridx] != '.') {
                 // check above too
-                const above_ridx = util.index(grid, rx, @intCast(ry - 1));
+                const above_ridx = util.index(&grid, rx, @intCast(ry - 1));
                 if (0 < above_ridx and above_ridx < grid.lines.len) {
                     if (grid.lines[above_ridx] != '.') {
                         return null;
@@ -77,7 +77,7 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     while (std.mem.indexOfScalar(u8, grid.lines, 'T') != null or std.mem.indexOfScalar(u8, grid.lines, 'H') != null) {
         var y: usize = 0;
         while (y < grid.height) : (y += 1) {
-            const ch = lines[util.index(grid, 1, y)];
+            const ch = lines[util.index(&grid, 1, y)];
             if (ch == '.' or ch == '=') {
                 continue;
             }
@@ -87,7 +87,7 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
                     const multiplier: u64 = (if (ch == 'A') 1 else if (ch == 'B') 2 else if (ch == 'C') 3 else unreachable);
                     total += p * multiplier;
 
-                    const hidx = util.index(grid, hit[0], hit[1]);
+                    const hidx = util.index(&grid, hit[0], hit[1]);
                     grid.lines[hidx] = switch (grid.lines[hidx]) {
                         'T' => '.',
                         'H' => 'T',

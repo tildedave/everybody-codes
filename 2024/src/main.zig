@@ -15,6 +15,7 @@ const quest13 = @import("quest13.zig");
 const quest14 = @import("quest14.zig");
 const quest15 = @import("quest15.zig");
 const quest16 = @import("quest16.zig");
+const quest17 = @import("quest17.zig");
 const util = @import("util.zig");
 
 pub fn main() !void {
@@ -209,6 +210,11 @@ pub fn main() !void {
         }
         if (std.mem.eql(u8, part, "3")) {
             std.debug.print("{any}\n", .{try quest16.answer3(allocator, lines, 256)});
+        }
+    }
+    if (std.mem.eql(u8, quest, "quest17")) {
+        if (std.mem.eql(u8, part, "1")) {
+            std.debug.print("{d}\n", .{try quest17.answer1(allocator, lines)});
         }
     }
 }

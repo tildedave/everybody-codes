@@ -1,5 +1,6 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
+const expect = std.testing.expect;
 
 pub fn nthIndexOfScalar(comptime T: type, slice: []const T, value: T, n: usize) ?usize {
     var pos: usize = 0;
@@ -81,13 +82,16 @@ fn right_x(grid: Grid, x: usize, opts: WalkOptions) ?usize {
     return (x + 1) % grid.width;
 }
 
-pub fn index(grid: Grid, x: usize, y: usize) usize {
+pub fn index(grid: *const Grid, x: usize, y: usize) usize {
     return y * (grid.width + 1) + x;
 }
 
+pub fn coords(grid: *const Grid, idx: usize) struct { usize, usize } {
+    return .{ idx % (grid.width + 1), idx / (grid.width + 1) };
+}
+
 pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?usize {
-    const x = idx % (grid.width + 1);
-    const y = idx / (grid.width + 1);
+    const x, const y = coords(&grid, idx);
 
     var next_y: ?usize = y;
     var next_x: ?usize = x;
@@ -119,7 +123,7 @@ pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?us
         return null;
     }
 
-    return index(grid, next_x.?, next_y.?);
+    return index(&grid, next_x.?, next_y.?);
 }
 
 // infinite iterator
@@ -539,4 +543,69 @@ pub fn Searcher(comptime T: type) type {
             return SearchError.Unreachable;
         }
     };
+}
+
+pub fn DisjointSet(comptime T: type) type {
+    return struct {
+        pub const Node = struct {
+            elem: T,
+            parent: ?*Node,
+        };
+
+        items: std.ArrayList(Node),
+        allocator: std.mem.Allocator,
+
+        const Self = @This();
+
+        pub fn init(allocator: std.mem.Allocator) !Self {
+            return .{
+                .items = try std.ArrayList(Node).initCapacity(allocator, 0),
+                .allocator = allocator,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.items.deinit(self.allocator);
+        }
+
+        pub fn makeSet(self: *Self, elem: T) !*Node {
+            const list = Node{ .elem = elem, .parent = null };
+            try self.items.append(self.allocator, list);
+
+            return &self.items.items[self.items.items.len - 1];
+        }
+
+        pub fn find(_: Self, elem: *Node) *Node {
+            var root = elem;
+            while (root.parent != null) : (root = root.parent.?) {}
+
+            var node = elem;
+            while (node.parent != null) {
+                const next_parent = node.parent.?;
+                node.parent = root;
+                node = next_parent;
+            }
+
+            return root;
+        }
+
+        pub fn unionSets(self: *Self, elem1: *Node, elem2: *Node) void {
+            var elem1_root = self.find(elem1);
+            const elem2_root = self.find(elem2);
+            elem1_root.parent = elem2_root;
+        }
+    };
+}
+
+test "union find" {
+    var set = try DisjointSet(u32).init(std.testing.allocator);
+    defer set.deinit();
+
+    const e1 = try set.makeSet(1);
+    const e2 = try set.makeSet(2);
+
+    try expect(set.find(e1).elem != set.find(e2).elem);
+    set.unionSets(e1, e2);
+
+    try expectEqual(set.find(e1).elem, set.find(e2).elem);
 }

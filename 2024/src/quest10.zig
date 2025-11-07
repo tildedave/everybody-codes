@@ -22,18 +22,18 @@ test "base power" {
 fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, start_y: usize, dx: usize, dy: usize) !bool {
     const x = start_x + dx;
     const y = start_y + dy;
-    const current_idx = util.index(grid, x, y);
+    const current_idx = util.index(&grid, x, y);
     // OK, relevant letters are (start_x - 1, start_y + dy), (start_x - 2, start_y + dy) etc
 
     const pairs = [_]usize{
-        util.index(grid, start_x - 1, y),
-        util.index(grid, start_x - 2, y),
-        util.index(grid, start_x + 4, y),
-        util.index(grid, start_x + 5, y),
-        util.index(grid, x, start_y - 1),
-        util.index(grid, x, start_y - 2),
-        util.index(grid, x, start_y + 4),
-        util.index(grid, x, start_y + 5),
+        util.index(&grid, start_x - 1, y),
+        util.index(&grid, start_x - 2, y),
+        util.index(&grid, start_x + 4, y),
+        util.index(&grid, start_x + 5, y),
+        util.index(&grid, x, start_y - 1),
+        util.index(&grid, x, start_y - 2),
+        util.index(&grid, x, start_y + 4),
+        util.index(&grid, x, start_y + 5),
     };
 
     var seen = std.AutoHashMap(u8, u32).init(allocator);
@@ -80,7 +80,7 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, st
         // std.debug.print("solving question mark ({d}, {d}) --> ", .{ x, y });
 
         for (0..4) |ddx| {
-            const idx = util.index(grid, start_x + ddx, y);
+            const idx = util.index(&grid, start_x + ddx, y);
             if (idx == current_idx) {
                 continue;
             }
@@ -99,7 +99,7 @@ fn solveLetter(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, st
         }
 
         for (0..4) |ddy| {
-            const idx = util.index(grid, x, start_y + ddy);
+            const idx = util.index(&grid, x, start_y + ddy);
             if (idx == current_idx) {
                 continue;
             }
@@ -179,7 +179,7 @@ fn solveBlock(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, sta
     var any_solved = false;
     for (0..4) |dy| {
         for (0..4) |dx| {
-            if (grid.lines[util.index(grid, start_x + dx, start_y + dy)] == '.') {
+            if (grid.lines[util.index(&grid, start_x + dx, start_y + dy)] == '.') {
                 any_solved = try solveLetter(allocator, grid, start_x, start_y, dx, dy) or any_solved;
             }
         }
@@ -199,7 +199,7 @@ fn readBlock(allocator: std.mem.Allocator, grid: util.Grid, start_x: usize, star
         for (0..4) |dx| {
             const x = start_x + dx;
             const y = start_y + dy;
-            result[result_idx] = grid.lines[util.index(grid, x, y)];
+            result[result_idx] = grid.lines[util.index(&grid, x, y)];
             result_idx += 1;
         }
     }
