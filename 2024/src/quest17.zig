@@ -27,6 +27,14 @@ fn lessThanEdges(_: @TypeOf(.{}), e1: Edge, e2: Edge) bool {
 }
 
 pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
+    return constellations(allocator, lines, false);
+}
+
+pub fn answer3(allocator: std.mem.Allocator, lines: []const u8) !u64 {
+    return constellations(allocator, lines, true);
+}
+
+fn constellations(allocator: std.mem.Allocator, lines: []const u8, brilliant: bool) !u64 {
     var star_indices = try std.ArrayList(usize).initCapacity(allocator, 0);
     defer star_indices.deinit(allocator);
 
@@ -47,7 +55,9 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
                 continue;
             }
             const distance = manhattanDistance(&grid, i, j);
-            try all_edges.append(allocator, Edge{ .source = i, .dest = j, .weight = distance });
+            if (!brilliant or distance < 6) {
+                try all_edges.append(allocator, Edge{ .source = i, .dest = j, .weight = distance });
+            }
         }
     }
 
@@ -66,25 +76,56 @@ pub fn answer1(allocator: std.mem.Allocator, lines: []const u8) !u64 {
 
     var mst_edges = try std.ArrayList(Edge).initCapacity(allocator, 0);
     defer mst_edges.deinit(allocator);
-    var mst_weight: u64 = 0;
 
     for (all_edges.items) |e| {
         const source_node = forest_map.get(e.source).?;
         const dest_node = forest_map.get(e.dest).?;
+
         if (forest.find(source_node) != forest.find(dest_node)) {
             forest.unionSets(source_node, dest_node);
             try mst_edges.append(allocator, e);
-            mst_weight += e.weight;
         }
     }
 
-    // std.debug.print("{any}\n", .{mst_edges.items});
+    var mst_weight_map = std.AutoHashMap(usize, struct { usize, u64 }).init(allocator);
+    defer mst_weight_map.deinit();
 
-    return mst_weight + star_indices.items.len;
+    for (mst_edges.items) |e| {
+        const source_root = forest.find(forest_map.get(e.source).?);
+        const dest_root = forest.find(forest_map.get(e.dest).?);
+        std.debug.assert(source_root == dest_root);
+
+        const existing = mst_weight_map.get(source_root.elem) orelse .{ 0, 0 };
+        try mst_weight_map.put(source_root.elem, .{ existing.@"0" + 1, existing.@"1" + e.weight });
+    }
+
+    var totals = try std.ArrayList(u64).initCapacity(allocator, 0);
+    defer totals.deinit(allocator);
+
+    var it_msg_weights = mst_weight_map.iterator();
+    while (it_msg_weights.next()) |a| {
+        std.debug.print("{any}\n", .{a});
+
+        try totals.append(allocator, 1 + a.value_ptr.@"0" + a.value_ptr.@"1");
+    }
+    std.mem.sort(u64, totals.items, {}, comptime std.sort.desc(u64));
+
+    var total: u64 = 1;
+    for (0..3) |i| {
+        if (i < totals.items.len) {
+            total *= totals.items[i];
+        }
+    }
+    return total;
 }
 
 test "given example (part 1)" {
     const lines = "*...*\n..*..\n.....\n.....\n*.*..\n";
 
     try expectEqual(16, try answer1(std.testing.allocator, lines));
+}
+
+test "given example (part 3)" {
+    const lines = ".......................................\n..*.......*...*.....*...*......**.**...\n....*.................*.......*..*..*..\n..*.........*.......*...*.....*.....*..\n......................*........*...*...\n..*.*.....*...*.....*...*........*.....\n.......................................\n";
+    try expectEqual(15624, try answer3(std.testing.allocator, lines));
 }

@@ -592,6 +592,9 @@ pub fn DisjointSet(comptime T: type) type {
         pub fn unionSets(self: *Self, elem1: *Node, elem2: *Node) void {
             var elem1_root = self.find(elem1);
             const elem2_root = self.find(elem2);
+            std.debug.assert(elem1_root.parent == null);
+            std.debug.assert(elem2_root.parent == null);
+
             elem1_root.parent = elem2_root;
         }
     };
