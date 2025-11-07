@@ -240,5 +240,8 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "2")) {
             std.debug.print("{s}\n", .{try quest19.answer(allocator, lines, 100)});
         }
+        if (std.mem.eql(u8, part, "3")) {
+            std.debug.print("{s}\n", .{try quest19.answer(allocator, lines, 1048576000)});
+        }
     }
 }

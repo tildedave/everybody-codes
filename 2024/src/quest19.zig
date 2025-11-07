@@ -48,7 +48,10 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
         }
     }
 
-    for (0..times) |_| {
+    for (0..times) |loop_num| {
+        if (loop_num % 1000 == 0) {
+            std.debug.print("{d}\n", .{loop_num});
+        }
         var j: usize = 0;
         for (rotation_points.items) |rp| {
             switch (instruction_line[j]) {
