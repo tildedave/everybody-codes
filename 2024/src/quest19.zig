@@ -30,6 +30,71 @@ fn rotateLeft(grid: *util.Grid, i: usize) void {
     grid.lines[util.index(grid, x + 1, y - 1)] = temp;
 }
 
+fn rightRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]usize {
+    var permutation = try allocator.alloc(usize, grid.lines.len);
+
+    const x, const y = util.coords(grid, idx);
+    var i: usize = 0;
+    while (i < grid.lines.len) : (i += 1) {
+        // zig fmt: off
+        permutation[i] =
+            if (i == util.index(grid, x + 1, y)) util.index(grid, x + 1, y + 1)
+            else if (i == util.index(grid, x + 1, y + 1)) util.index(grid, x, y + 1)
+            else if (i == util.index(grid, x, y + 1)) util.index(grid, x - 1, y + 1)
+            else if (i == util.index(grid, x - 1, y + 1)) util.index(grid, x - 1, y)
+            else if (i == util.index(grid, x - 1, y)) util.index(grid, x - 1, y - 1)
+            else if (i == util.index(grid, x - 1, y - 1)) util.index(grid, x, y - 1)
+            else if (i == util.index(grid, x, y - 1)) util.index(grid, x + 1, y - 1)
+            else if (i == util.index(grid, x + 1, y - 1)) util.index(grid, x + 1, y)
+            else i;
+        // zig fmt: on
+    }
+
+    return permutation;
+}
+
+fn leftRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]usize {
+    var permutation = try allocator.alloc(usize, grid.lines.len);
+
+    const x, const y = util.coords(grid, idx);
+    var i: usize = 0;
+    while (i < grid.lines.len) : (i += 1) {
+        // zig fmt: off
+        permutation[i] =
+            if (i == util.index(grid, x + 1, y)) util.index(grid, x + 1, y - 1)
+            else if (i == util.index(grid, x + 1, y - 1)) util.index(grid, x, y - 1)
+            else if (i == util.index(grid, x, y - 1)) util.index(grid, x - 1, y - 1)
+            else if (i == util.index(grid, x - 1, y - 1)) util.index(grid, x - 1, y)
+            else if (i == util.index(grid, x - 1, y)) util.index(grid, x - 1, y + 1)
+            else if (i == util.index(grid, x - 1, y + 1)) util.index(grid, x, y + 1)
+            else if (i == util.index(grid, x, y + 1)) util.index(grid, x + 1, y + 1)
+            else if (i == util.index(grid, x + 1, y + 1)) util.index(grid, x + 1, y)
+            else i;
+        // zig fmt: on
+    }
+    return permutation;
+}
+
+fn composePermutations(allocator: std.mem.Allocator, permutation1: []usize, permutation2: []usize) ![]usize {
+    std.debug.assert(permutation1.len == permutation2.len);
+    // std.debug.print("compose {any} {any}\n", .{ permutation1, permutation2 });
+    var result = try allocator.alloc(usize, permutation1.len);
+    for (0..permutation1.len) |i| {
+        result[i] = permutation2[permutation1[i]];
+    }
+    return result;
+}
+
+fn applyPermutation(allocator: std.mem.Allocator, grid: *util.Grid, permutation: []usize) ![]const u8 {
+    std.debug.assert(permutation.len == grid.lines.len);
+    const result = try allocator.alloc(u8, grid.lines.len);
+    for (0..grid.lines.len) |i| {
+        result[permutation[i]] = grid.lines[i];
+    }
+
+    return result;
+}
+
 pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]const u8 {
     const newline_pos = std.mem.indexOfScalar(u8, lines, '\n').?;
     const instruction_line = lines[0..newline_pos];
@@ -48,33 +113,50 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
         }
     }
 
-    for (0..times) |loop_num| {
-        if (loop_num % 1000 == 0) {
-            std.debug.print("{d}\n", .{loop_num});
-        }
+    var loop_num: usize = 0;
+    var permutation = try allocator.alloc(usize, grid.lines.len);
+    for (0..grid.lines.len) |k| {
+        permutation[k] = k;
+    }
+    while (loop_num < times) {
         var j: usize = 0;
+
         for (rotation_points.items) |rp| {
-            switch (instruction_line[j]) {
-                'L' => {
-                    rotateLeft(&grid, rp);
-                },
-                'R' => {
-                    rotateRight(&grid, rp);
-                },
+            const rotation_permutation = switch (instruction_line[j]) {
+                'L' => try leftRotationPermutation(allocator, &grid, rp),
+                'R' => try rightRotationPermutation(allocator, &grid, rp),
                 else => unreachable,
-            }
+            };
+            const next_permutation = try composePermutations(allocator, permutation, rotation_permutation);
+            allocator.free(permutation);
+            defer allocator.free(rotation_permutation);
+            permutation = next_permutation;
+
             j = (j + 1) % (instruction_line.len);
+
+            const applied_grid = try applyPermutation(allocator, &grid, permutation);
+            std.debug.print("ROTATED:\n{s}\n", .{applied_grid});
+            allocator.free(applied_grid);
         }
+        loop_num += 1;
     }
 
-    const start_index = std.mem.indexOfScalar(u8, grid.lines, '>').?;
-    const end_index = std.mem.indexOfScalar(u8, grid.lines, '<').?;
+    const applied_grid = try applyPermutation(allocator, &grid, permutation);
+    defer allocator.free(applied_grid);
+    defer allocator.free(permutation);
+
+    // std.debug.print("ROTATED:\n{s}\n", .{applied_grid});
+
+    // approach that will work is matrices, this is a linear transformation.
+
+    const start_index = std.mem.indexOfScalar(u8, applied_grid, '>').?;
+    const end_index = std.mem.indexOfScalar(u8, applied_grid, '<').?;
     _, const start_y = util.coords(&grid, start_index);
     _, const end_y = util.coords(&grid, end_index);
     std.debug.assert(start_y == end_y);
 
     const result = try allocator.alloc(u8, end_index - start_index - 1);
-    @memcpy(result, grid.lines[start_index + 1 .. end_index]);
+    @memcpy(result, applied_grid[start_index + 1 .. end_index]);
     return result;
 }
 
