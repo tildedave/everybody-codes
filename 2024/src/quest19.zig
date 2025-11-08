@@ -75,22 +75,17 @@ fn leftRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: 
     return permutation;
 }
 
-fn composePermutations(allocator: std.mem.Allocator, permutation1: []const usize, permutation2: []const usize) ![]usize {
+fn composePermutations(dest: []usize, permutation1: []const usize, permutation2: []const usize) void {
     std.debug.assert(permutation1.len == permutation2.len);
-    // std.debug.print("compose {any} {any}\n", .{ permutation1, permutation2 });
-    var result = try allocator.alloc(usize, permutation1.len);
     for (0..permutation1.len) |i| {
-        result[i] = permutation2[permutation1[i]];
+        dest[i] = permutation2[permutation1[i]];
     }
-    return result;
 }
 
-fn initialPermutation(allocator: std.mem.Allocator, len: usize) ![]const usize {
-    var initial_permutation = try allocator.alloc(usize, len);
+fn initialPermutation(dest: []usize, len: usize) void {
     for (0..len) |k| {
-        initial_permutation[k] = k;
+        dest[k] = k;
     }
-    return initial_permutation;
 }
 
 // fn expPermutation(allocator: std.mem.Allocator, permutation: []usize, n: usize) ![]usize {
@@ -101,10 +96,10 @@ fn initialPermutation(allocator: std.mem.Allocator, len: usize) ![]const usize {
 //     var result = try initialPermutation(allocator, permutation.len);
 //     while (_n > 0) {
 //         if (_n % 2 == 1) {
-//             const next_result = try composePermutations(allocator, permutation, result);
+//             const next_result = composePermutations(allocator, permutation, result);
 //             result = next_result;
 //         }
-//         const next_m = try composePermutations(allocator, m, m);
+//         const next_m = composePermutations(allocator, m, m);
 //         defer allocator.free(m);
 //         m = next_m;
 //         _n = _n / 2;
@@ -141,7 +136,11 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
         }
     }
 
-    var permutation = try initialPermutation(allocator, grid.lines.len);
+    const step_permutation = try allocator.alloc(usize, grid.lines.len);
+    defer allocator.free(step_permutation);
+
+    initialPermutation(step_permutation, grid.lines.len);
+
     var j: usize = 0;
 
     for (rotation_points.items) |rp| {
@@ -150,24 +149,27 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
             'R' => try rightRotationPermutation(allocator, &grid, rp),
             else => unreachable,
         };
-        const next_permutation = try composePermutations(allocator, permutation, rotation_permutation);
-        allocator.free(permutation);
         defer allocator.free(rotation_permutation);
-        permutation = next_permutation;
+
+        const next = try allocator.alloc(usize, step_permutation.len);
+        defer allocator.free(next);
+
+        composePermutations(next, step_permutation, rotation_permutation);
+        @memcpy(step_permutation, next);
 
         j = (j + 1) % (instruction_line.len);
     }
 
-    var final_permutation = try allocator.alloc(usize, permutation.len);
-    @memcpy(final_permutation, permutation);
+    const final_permutation = try allocator.alloc(usize, step_permutation.len);
+    @memcpy(final_permutation, step_permutation);
     for (0..times - 1) |_| {
-        const next_final_permutation = try composePermutations(allocator, final_permutation, permutation);
-        std.debug.print("{any} * {any} = {any}\n", .{ final_permutation, permutation, next_final_permutation });
-        allocator.free(final_permutation);
-        final_permutation = next_final_permutation;
+        const next = try allocator.alloc(usize, step_permutation.len);
+        defer allocator.free(next);
+
+        composePermutations(next, final_permutation, step_permutation);
+        std.debug.print("{any} * {any} = {any}\n", .{ final_permutation, step_permutation, next });
+        @memcpy(final_permutation, next);
     }
-    // defer allocator.free(final_permutation);
-    defer allocator.free(permutation);
 
     const applied_grid = try applyPermutation(allocator, &grid, final_permutation);
     defer allocator.free(applied_grid);
