@@ -72,7 +72,7 @@ fn isGoal(c: Coord, ctx: SearchContext) bool {
         return false;
     }
 
-    std.debug.print("{any}\n", .{c});
+    // std.debug.print("{any}\n", .{c});
 
     if (ctx.best_altitude_so_far.* < c.altitude) {
         ctx.best_altitude_so_far.* = c.altitude;

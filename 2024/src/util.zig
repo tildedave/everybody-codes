@@ -432,7 +432,7 @@ pub fn Searcher(comptime T: type) type {
         }
 
         fn comparator(ctx: PriorityQueueContext, a: T, b: T) std.math.Order {
-            return std.math.order(ctx.distances.get(a).?, ctx.distances.get(b).?);
+            return std.math.order(ctx.distances.get(b).?, ctx.distances.get(a).?);
         }
 
         pub fn dijkstra(
