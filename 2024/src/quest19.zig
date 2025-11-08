@@ -30,7 +30,7 @@ fn rotateLeft(grid: *util.Grid, i: usize) void {
     grid.lines[util.index(grid, x + 1, y - 1)] = temp;
 }
 
-fn rightRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]usize {
+fn rightRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]const usize {
     var permutation = try allocator.alloc(usize, grid.lines.len);
 
     const x, const y = util.coords(grid, idx);
@@ -53,7 +53,7 @@ fn rightRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx:
     return permutation;
 }
 
-fn leftRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]usize {
+fn leftRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: usize) ![]const usize {
     var permutation = try allocator.alloc(usize, grid.lines.len);
 
     const x, const y = util.coords(grid, idx);
@@ -75,7 +75,7 @@ fn leftRotationPermutation(allocator: std.mem.Allocator, grid: *util.Grid, idx: 
     return permutation;
 }
 
-fn composePermutations(allocator: std.mem.Allocator, permutation1: []usize, permutation2: []usize) ![]usize {
+fn composePermutations(allocator: std.mem.Allocator, permutation1: []const usize, permutation2: []const usize) ![]usize {
     std.debug.assert(permutation1.len == permutation2.len);
     // std.debug.print("compose {any} {any}\n", .{ permutation1, permutation2 });
     var result = try allocator.alloc(usize, permutation1.len);
@@ -85,7 +85,35 @@ fn composePermutations(allocator: std.mem.Allocator, permutation1: []usize, perm
     return result;
 }
 
-fn applyPermutation(allocator: std.mem.Allocator, grid: *util.Grid, permutation: []usize) ![]const u8 {
+fn initialPermutation(allocator: std.mem.Allocator, len: usize) ![]const usize {
+    var initial_permutation = try allocator.alloc(usize, len);
+    for (0..len) |k| {
+        initial_permutation[k] = k;
+    }
+    return initial_permutation;
+}
+
+// fn expPermutation(allocator: std.mem.Allocator, permutation: []usize, n: usize) ![]usize {
+//     var m = try allocator.alloc(usize, permutation.len);
+//     @memcpy(m, permutation);
+//     var _n = n;
+
+//     var result = try initialPermutation(allocator, permutation.len);
+//     while (_n > 0) {
+//         if (_n % 2 == 1) {
+//             const next_result = try composePermutations(allocator, permutation, result);
+//             result = next_result;
+//         }
+//         const next_m = try composePermutations(allocator, m, m);
+//         defer allocator.free(m);
+//         m = next_m;
+//         _n = _n / 2;
+//     }
+
+//     return result;
+// }
+
+fn applyPermutation(allocator: std.mem.Allocator, grid: *util.Grid, permutation: []const usize) ![]const u8 {
     std.debug.assert(permutation.len == grid.lines.len);
     const result = try allocator.alloc(u8, grid.lines.len);
     for (0..grid.lines.len) |i| {
@@ -113,41 +141,38 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
         }
     }
 
-    var loop_num: usize = 0;
-    var permutation = try allocator.alloc(usize, grid.lines.len);
-    for (0..grid.lines.len) |k| {
-        permutation[k] = k;
-    }
-    while (loop_num < times) {
-        var j: usize = 0;
+    var permutation = try initialPermutation(allocator, grid.lines.len);
+    var j: usize = 0;
 
-        for (rotation_points.items) |rp| {
-            const rotation_permutation = switch (instruction_line[j]) {
-                'L' => try leftRotationPermutation(allocator, &grid, rp),
-                'R' => try rightRotationPermutation(allocator, &grid, rp),
-                else => unreachable,
-            };
-            const next_permutation = try composePermutations(allocator, permutation, rotation_permutation);
-            allocator.free(permutation);
-            defer allocator.free(rotation_permutation);
-            permutation = next_permutation;
+    for (rotation_points.items) |rp| {
+        const rotation_permutation = switch (instruction_line[j]) {
+            'L' => try leftRotationPermutation(allocator, &grid, rp),
+            'R' => try rightRotationPermutation(allocator, &grid, rp),
+            else => unreachable,
+        };
+        const next_permutation = try composePermutations(allocator, permutation, rotation_permutation);
+        allocator.free(permutation);
+        defer allocator.free(rotation_permutation);
+        permutation = next_permutation;
 
-            j = (j + 1) % (instruction_line.len);
-
-            const applied_grid = try applyPermutation(allocator, &grid, permutation);
-            std.debug.print("ROTATED:\n{s}\n", .{applied_grid});
-            allocator.free(applied_grid);
-        }
-        loop_num += 1;
+        j = (j + 1) % (instruction_line.len);
     }
 
-    const applied_grid = try applyPermutation(allocator, &grid, permutation);
-    defer allocator.free(applied_grid);
+    var final_permutation = try allocator.alloc(usize, permutation.len);
+    @memcpy(final_permutation, permutation);
+    for (0..times - 1) |_| {
+        const next_final_permutation = try composePermutations(allocator, final_permutation, permutation);
+        std.debug.print("{any} * {any} = {any}\n", .{ final_permutation, permutation, next_final_permutation });
+        allocator.free(final_permutation);
+        final_permutation = next_final_permutation;
+    }
+    // defer allocator.free(final_permutation);
     defer allocator.free(permutation);
 
-    // std.debug.print("ROTATED:\n{s}\n", .{applied_grid});
+    const applied_grid = try applyPermutation(allocator, &grid, final_permutation);
+    defer allocator.free(applied_grid);
 
-    // approach that will work is matrices, this is a linear transformation.
+    std.debug.print("ROTATED:\n{s}\n", .{applied_grid});
 
     const start_index = std.mem.indexOfScalar(u8, applied_grid, '>').?;
     const end_index = std.mem.indexOfScalar(u8, applied_grid, '<').?;
