@@ -88,25 +88,32 @@ fn initialPermutation(dest: []usize, len: usize) void {
     }
 }
 
-// fn expPermutation(allocator: std.mem.Allocator, permutation: []usize, n: usize) ![]usize {
-//     var m = try allocator.alloc(usize, permutation.len);
-//     @memcpy(m, permutation);
-//     var _n = n;
+fn expPermutation(allocator: std.mem.Allocator, dest: []usize, permutation: []const usize, n: usize) !void {
+    const m = try allocator.alloc(usize, permutation.len);
+    defer allocator.free(m);
 
-//     var result = try initialPermutation(allocator, permutation.len);
-//     while (_n > 0) {
-//         if (_n % 2 == 1) {
-//             const next_result = composePermutations(allocator, permutation, result);
-//             result = next_result;
-//         }
-//         const next_m = composePermutations(allocator, m, m);
-//         defer allocator.free(m);
-//         m = next_m;
-//         _n = _n / 2;
-//     }
+    @memcpy(m, permutation);
+    var _n = n;
 
-//     return result;
-// }
+    initialPermutation(dest, permutation.len);
+
+    while (_n > 0) {
+        if (_n % 2 == 1) {
+            const next = try allocator.alloc(usize, permutation.len);
+            defer allocator.free(next);
+            composePermutations(next, m, dest);
+
+            @memcpy(dest, next);
+        }
+
+        const next_m = try allocator.alloc(usize, permutation.len);
+        defer allocator.free(next_m);
+        composePermutations(next_m, m, m);
+        @memcpy(m, next_m);
+
+        _n = _n / 2;
+    }
+}
 
 fn applyPermutation(allocator: std.mem.Allocator, grid: *util.Grid, permutation: []const usize) ![]const u8 {
     std.debug.assert(permutation.len == grid.lines.len);
@@ -161,15 +168,8 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
     }
 
     const final_permutation = try allocator.alloc(usize, step_permutation.len);
-    @memcpy(final_permutation, step_permutation);
-    for (0..times - 1) |_| {
-        const next = try allocator.alloc(usize, step_permutation.len);
-        defer allocator.free(next);
-
-        composePermutations(next, final_permutation, step_permutation);
-        std.debug.print("{any} * {any} = {any}\n", .{ final_permutation, step_permutation, next });
-        @memcpy(final_permutation, next);
-    }
+    defer allocator.free(final_permutation);
+    try expPermutation(allocator, final_permutation, step_permutation, times);
 
     const applied_grid = try applyPermutation(allocator, &grid, final_permutation);
     defer allocator.free(applied_grid);
