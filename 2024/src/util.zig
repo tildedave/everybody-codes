@@ -29,7 +29,7 @@ pub const Grid = struct {
     height: usize,
 };
 
-pub const Direction = enum { up, down, left, right, upleft, upright, downleft, downright };
+pub const Direction = enum { up, down, left, right, upleft, upright, downleft, downright, any };
 
 pub const cardinalDirections: []const Direction = &[_]Direction{ .up, .down, .left, .right };
 pub const allDirections: []const Direction = &[_]Direction{ .up, .upright, .right, .downright, .down, .downleft, .left, .upleft };
@@ -117,6 +117,7 @@ pub fn walk(grid: Grid, idx: usize, direction: Direction, opts: WalkOptions) ?us
             next_x = right_x(grid, x, opts);
             next_y = down_y(grid, y, opts);
         },
+        else => unreachable,
     }
 
     if (next_x == null or next_y == null) {
@@ -169,12 +170,14 @@ pub const NeighborIterator = struct {
     directions: []const Direction = &[_]Direction{ .up, .right, .down, .left },
     dir_idx: usize = 0,
     next_idx: usize = 0,
+    last_direction: Direction = .any,
 
     pub fn next(self: *NeighborIterator) ?u8 {
         while (self.dir_idx < self.directions.len) {
             const dir = self.directions[self.dir_idx];
             const next_idx = walk(self.grid, self.idx, dir, self.walk_opts);
             self.dir_idx += 1;
+            self.last_direction = self.directions[self.dir_idx - 1];
 
             if (next_idx) |ni| {
                 self.next_idx = ni;
