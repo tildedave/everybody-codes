@@ -163,6 +163,12 @@ pub fn createGrid(allocator: std.mem.Allocator, lines: []const u8) !Grid {
     };
 }
 
+pub fn manhattanDistance(grid: *const Grid, i: usize, j: usize) usize {
+    const xi, const yi = coords(grid, i);
+    const xj, const yj = coords(grid, j);
+    return (if (xj > xi) xj - xi else xi - xj) + (if (yj > yi) yj - yi else yi - yj);
+}
+
 pub const NeighborIterator = struct {
     grid: Grid,
     idx: usize,
@@ -432,7 +438,7 @@ pub fn Searcher(comptime T: type) type {
         }
 
         fn comparator(ctx: PriorityQueueContext, a: T, b: T) std.math.Order {
-            return std.math.order(ctx.distances.get(b).?, ctx.distances.get(a).?);
+            return std.math.order(ctx.distances.get(a).?, ctx.distances.get(b).?);
         }
 
         pub fn dijkstra(
@@ -510,9 +516,10 @@ pub fn Searcher(comptime T: type) type {
 
             while (frontier.count() > 0) {
                 const node = frontier.remove();
+                // std.debug.print("{any} (heuristic {d})\n", .{ node, guess_distances.get(node).? });
 
                 if (isGoal(node, context)) {
-                    std.debug.print("found goal {any} {d}\n", .{ node, distances.get(node).? });
+                    // std.debug.print("found goal {any} {d}\n", .{ node, distances.get(node).? });
                     return;
                 }
 
@@ -535,8 +542,11 @@ pub fn Searcher(comptime T: type) type {
                         try distances.put(n, score);
                         try guess_distances.put(n, score + heuristic(n, context));
                         if (is_new) {
+                            // std.debug.print("adding item to heap\n", .{});
                             try frontier.add(n);
+                            // std.debug.print("first element of heap now {any} {d}\n", .{ frontier.peek().?, guess_distances.get(frontier.peek().?).? });
                         } else {
+                            // std.debug.print("updating item in heap\n", .{});
                             try frontier.update(n, n);
                         }
                     }
