@@ -96,18 +96,18 @@ fn expPermutation(allocator: std.mem.Allocator, dest: []usize, permutation: []co
     var _n = n;
 
     initialPermutation(dest, permutation.len);
+    const next = try allocator.alloc(usize, permutation.len);
+    const next_m = try allocator.alloc(usize, permutation.len);
+    defer allocator.free(next);
+    defer allocator.free(next_m);
 
     while (_n > 0) {
         if (_n % 2 == 1) {
-            const next = try allocator.alloc(usize, permutation.len);
-            defer allocator.free(next);
             composePermutations(next, m, dest);
 
             @memcpy(dest, next);
         }
 
-        const next_m = try allocator.alloc(usize, permutation.len);
-        defer allocator.free(next_m);
         composePermutations(next_m, m, m);
         @memcpy(m, next_m);
 
@@ -147,6 +147,8 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
     defer allocator.free(step_permutation);
 
     initialPermutation(step_permutation, grid.lines.len);
+    const next = try allocator.alloc(usize, step_permutation.len);
+    defer allocator.free(next);
 
     var j: usize = 0;
 
@@ -157,9 +159,6 @@ pub fn answer(allocator: std.mem.Allocator, lines: []const u8, times: usize) ![]
             else => unreachable,
         };
         defer allocator.free(rotation_permutation);
-
-        const next = try allocator.alloc(usize, step_permutation.len);
-        defer allocator.free(next);
 
         composePermutations(next, step_permutation, rotation_permutation);
         @memcpy(step_permutation, next);
