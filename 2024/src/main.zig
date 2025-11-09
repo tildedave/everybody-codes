@@ -252,5 +252,11 @@ pub fn main() !void {
         if (std.mem.eql(u8, part, "2")) {
             std.debug.print("{d}\n", .{try quest20.answer2(allocator, lines)});
         }
+        if (std.mem.eql(u8, part, "3")) {
+            // increment is 24 per change of 12 altitude
+            for (0..100) |i| {
+                std.debug.print("{d} - {d}\n", .{ i, try quest20.answer3(allocator, lines, @intCast(i)) });
+            }
+        }
     }
 }
