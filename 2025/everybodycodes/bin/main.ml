@@ -19,4 +19,7 @@ print_endline
    | "quest4", "2" ->
        Int.to_string @@ Quest4.part2 (List.map int_of_string lines)
    | "quest4", "3" -> Int.to_string @@ Quest4.part3 lines
+   | "quest5", "1" -> Int.to_string @@ Quest5.part1 @@ List.hd lines
+   | "quest5", "2" -> Quest5.part2 @@ lines
+   | "quest5", "3" -> Int.to_string @@ Quest5.part3 lines
    | _ -> failwith "invalid argument")
