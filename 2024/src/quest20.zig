@@ -130,6 +130,7 @@ const Coord_Part2 = struct {
 const SearchContext_Part2 = struct {
     grid: *const util.Grid,
     best_time_so_far: *u64,
+    best_altitude: *std.AutoHashMap(struct { usize, util.Direction, u4 }, u32),
     a_location: usize,
     b_location: usize,
     c_location: usize,
@@ -240,14 +241,6 @@ fn heuristicPart2(c: Coord_Part2, ctx: SearchContext_Part2) u32 {
     const f_score = progress_scoring + distance_scoring + altitude_scoring;
     // std.debug.print("{any}: {d}; progress={d} distance={d} altitude={d}\n", .{ c, f_score, progress_scoring, distance_scoring, altitude_scoring });
 
-    // if (c.progress == 3 and c.altitude < 10000) {
-    //     const penalty = (10000 - c.altitude) * 50;
-    //     if (f_score > penalty) {
-    //         return f_score - penalty;
-    //     }
-    //     return 0;
-    // }
-
     return f_score;
 }
 
@@ -257,6 +250,14 @@ fn isGoalPart2(c: Coord_Part2, ctx: SearchContext_Part2) bool {
     }
 
     std.debug.print("end state -> {any}\n", .{c});
+
+    if (ctx.best_altitude.get(.{ c.location, c.direction, c.progress })) |best_altitude| {
+        if (c.altitude > best_altitude) {
+            ctx.best_altitude.putAssumeCapacity(.{ c.location, c.direction, c.progress }, c.altitude);
+        }
+    } else {
+        _ = ctx.best_altitude.put(.{ c.location, c.direction, c.progress }, c.altitude) catch null;
+    }
 
     if (c.time < ctx.best_time_so_far.* and c.altitude >= 10000) {
         std.debug.print("best so far {d}\n", .{c.time});
@@ -289,6 +290,11 @@ fn shouldPrunePart2(c: Coord_Part2, ctx: SearchContext_Part2) bool {
             return true;
         }
     }
+    if (ctx.best_altitude.get(.{ c.location, c.direction, c.progress })) |best_altitude| {
+        if (c.altitude < best_altitude) {
+            return true;
+        }
+    }
 
     return false;
 }
@@ -308,11 +314,14 @@ pub fn answer2(allocator: std.mem.Allocator, lines: []const u8) !u64 {
     const after_c_distance = util.manhattanDistance(&grid, c_location, start);
     const after_b_distance = after_c_distance + util.manhattanDistance(&grid, b_location, c_location);
     const after_a_distance = after_b_distance + util.manhattanDistance(&grid, a_location, b_location);
+    var best_altitude = std.AutoHashMap(struct { usize, util.Direction, u4 }, u32).init(allocator);
+    defer best_altitude.deinit();
 
     var best_time_so_far: u64 = std.math.maxInt(u64);
     const context = SearchContext_Part2{
         .grid = &grid,
         .best_time_so_far = &best_time_so_far,
+        .best_altitude = &best_altitude,
         .a_location = a_location,
         .b_location = b_location,
         .c_location = c_location,
