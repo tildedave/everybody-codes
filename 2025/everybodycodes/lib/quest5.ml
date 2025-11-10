@@ -6,17 +6,16 @@ type spine = Empty | Spine of int option * int * int option * spine
 let rec insert_fishbone s x =
   match s with
   | Empty -> Spine (None, x, None, Empty)
-  | Spine (None, y, None, s') ->
-      if x < y then Spine (Some x, y, None, s')
-      else if x > y then Spine (None, y, Some x, s')
-      else Spine (None, y, None, insert_fishbone s' x)
-  | Spine (l, y, None, s') ->
-      if x > y then Spine (l, y, Some x, s')
-      else Spine (l, y, None, insert_fishbone s' x)
-  | Spine (None, y, r, s') ->
-      if x < y then Spine (Some x, y, r, s')
-      else Spine (None, y, r, insert_fishbone s' x)
-  | Spine (l, y, r, s') -> Spine (l, y, r, insert_fishbone s' x)
+  | Spine (l, y, r, s') ->
+      if x < y then
+        match l with
+        | None -> Spine (Some x, y, r, s')
+        | Some _ -> Spine (l, y, r, insert_fishbone s' x)
+      else if x > y then
+        match r with
+        | None -> Spine (l, y, Some x, s')
+        | Some _ -> Spine (l, y, r, insert_fishbone s' x)
+      else Spine (l, y, r, insert_fishbone s' x)
 
 let rec quality_str s =
   match s with
