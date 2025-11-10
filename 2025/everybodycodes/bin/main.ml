@@ -23,4 +23,5 @@ print_endline
    | "quest5", "2" -> Quest5.part2 @@ lines
    | "quest5", "3" -> Int.to_string @@ Quest5.part3 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
+   | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | _ -> failwith "invalid argument")

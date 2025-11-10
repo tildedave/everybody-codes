@@ -1,20 +1,24 @@
 open Base
+open Util
 
 (* val eni: int -> int -> int -> ?only:int; *)
 
+let rec _eni score l exp n m =
+  match exp with
+  | 0 -> l
+  | _ ->
+      let next = score * n % m in
+      _eni next (next :: l) (exp - 1) n m
+
 let eni ?only:take_opt n exp m =
-  let rec _eni score l exp =
-    match exp with
-    | 0 -> l
-    | _ ->
-        let next = score * n % m in
-        _eni next (next :: l) (exp - 1)
-  in
   Util.concat_ints
   @@
   match take_opt with
-  | None -> _eni 1 [] exp
-  | Some n -> List.take (_eni 1 [] exp) n
+  | None -> _eni 1 [] exp n m
+  | Some s ->
+      let lop_off = exp - s in
+      if lop_off >= 0 then _eni (mod_exp n lop_off m) [] s n m
+      else _eni 1 [] exp n m
 
 let%test_unit "part1 (eni)" = [%test_eq: int] 1342 (eni 2 4 5)
 let%test_unit "part1 (eni 2) " = [%test_eq: int] 311193 (eni 3 5 16)
@@ -56,9 +60,9 @@ let%test_unit "quest 1 part2 (given)" =
          "A=5 B=9 C=7 X=6 Y=16 Z=18 M=15";
          "A=8 B=8 C=8 X=6 Y=19 Z=16 M=16";
        ])
-(*
+
 let%test_unit "quest 1 part2 (given 2)" =
-  [%test_eq: int] 11051340
+  [%test_eq: int] 1507702060886
     (quest1part2
        [
          "A=3657 B=3583 C=9716 X=903056852 Y=9283895500 Z=85920867478 M=188";
@@ -66,4 +70,4 @@ let%test_unit "quest 1 part2 (given 2)" =
          "A=7818 B=5395 C=9975 X=122388873 Y=4093041057 Z=58606045432 M=102";
          "A=7681 B=9603 C=5681 X=716116871 Y=6421884967 Z=66298999264 M=196";
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
-       ]) *)
+       ])
