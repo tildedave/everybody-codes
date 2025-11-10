@@ -54,7 +54,7 @@ let%test_unit "complex_div_3" =
 let%test_unit "complex_div_4" =
   [%test_eq: int * int] (-3, -2) (complex_div (-11, -12) (3, 5))
 
-let parse_number s = Caml.Scanf.sscanf s "A=[%d, %d]" (fun a b -> (a, b))
+let parse_number s = Stdlib.Scanf.sscanf s "A=[%d, %d]" (fun a b -> (a, b))
 
 let%test_unit "parse_number" =
   [%test_eq: int * int] (25, 9) (parse_number "A=[25,9]")
