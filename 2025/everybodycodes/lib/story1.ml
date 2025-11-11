@@ -129,21 +129,17 @@ let%test_unit "quest 1 part3 (given 2)" =
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
        ])
 
-type tree = Leaf | Node of (int * string) * tree * tree
+type tree = Leaf | Node of (int * int * string) * tree * tree
 
-let rec tree_insert tree (n, label) =
+let rec tree_insert tree (id, n, label) =
   match tree with
-  | Leaf -> Node ((n, label), Leaf, Leaf)
-  | Node (d, left, right) ->
-      if n < fst d then Node (d, tree_insert left (n, label), right)
-      else if n > fst d then Node (d, left, tree_insert right (n, label))
+  | Leaf -> Node ((id, n, label), Leaf, Leaf)
+  | Node ((id', n', label'), left, right) ->
+      if n < n' then
+        Node ((id', n', label'), tree_insert left (id, n, label), right)
+      else if n > n' then
+        Node ((id', n', label'), left, tree_insert right (id, n, label))
       else failwith "duplicate inserted"
-
-let process_line (left_tree, right_tree) s =
-  Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
-    (fun _ ln llabel rn rlabel ->
-      ( tree_insert left_tree (ln, Char.to_string llabel),
-        tree_insert right_tree (rn, Char.to_string rlabel) ))
 
 (* let rec nodes_per_level tree n =
    match (tree, n) with
@@ -160,11 +156,30 @@ let rec height tree =
 let rec message_per_level tree n =
   match (tree, n) with
   | Leaf, _ -> ""
-  | Node ((_, s), _, _), 0 -> s
+  | Node ((_, _, s), _, _), 0 -> s
   | Node (_, left, right), n ->
       String.append
         (message_per_level left (n - 1))
         (message_per_level right (n - 1))
+
+let rec find tree id =
+  match tree with
+  | Leaf -> None
+  | Node ((id', n, s), left, right) ->
+      if equal id id' then Some (n, s)
+      else Option.first_some (find right id) (find left id)
+
+let rec replace tree id (a, s) =
+  match tree with
+  | Leaf -> Leaf
+  | Node ((id', a', s'), left, right) ->
+      if equal id id' then Node ((id, a, s), left, right)
+      else Node ((id', a', s'), replace left id (a, s), replace right id (a, s))
+
+let swap (left_tree, right_tree) id =
+  let left, right = (find left_tree id, find right_tree id) in
+  ( replace left_tree id (Option.value_exn right),
+    replace right_tree id (Option.value_exn left) )
 
 let max_message_per_tree tree =
   let tree_height = height tree in
@@ -174,11 +189,22 @@ let max_message_per_tree tree =
          compare_int (String.length s1) (String.length s2))
   |> Option.value_exn
 
+let process_line (left_tree, right_tree) s =
+  match String.substr_index s ~pattern:"SWAP" with
+  | Some _ ->
+      Stdlib.Scanf.sscanf s "SWAP %d" (fun id ->
+          swap (left_tree, right_tree) id)
+  | None ->
+      Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
+        (fun id ln llabel rn rlabel ->
+          ( tree_insert left_tree (id, ln, Char.to_string llabel),
+            tree_insert right_tree (id, rn, Char.to_string rlabel) ))
+
 let quest2part1 l =
   let left, right = List.fold ~f:process_line ~init:(Leaf, Leaf) l in
   String.append (max_message_per_tree left) (max_message_per_tree right)
 
-let%test_unit "quest1part1 (given, part 1)" =
+let%test_unit "quest2part1 (given, part 1)" =
   [%test_eq: string] "CFGNLK"
     (quest2part1
        [
@@ -191,7 +217,7 @@ let%test_unit "quest1part1 (given, part 1)" =
          "ADD id=7 left=[4,E] right=[21,N]";
        ])
 
-let%test_unit "quest1part1 (given, part 2)" =
+let%test_unit "quest2part1 (given, part 2)" =
   [%test_eq: string] "EVERYBODYCODES"
     (quest2part1
        [
@@ -215,4 +241,19 @@ let%test_unit "quest1part1 (given, part 2)" =
          "ADD id=18 left=[117,O] right=[283,!]";
          "ADD id=19 left=[212,O] right=[127,R]";
          "ADD id=20 left=[278,A] right=[169,C]";
+       ])
+
+let%test_unit "quest2part2 (given, first)" =
+  [%test_eq: string] "MGFLNK"
+    (quest2part1
+       [
+         "ADD id=1 left=[10,A] right=[30,H]";
+         "ADD id=2 left=[15,D] right=[25,I]";
+         "ADD id=3 left=[12,F] right=[31,J]";
+         "ADD id=4 left=[5,B] right=[27,L]";
+         "ADD id=5 left=[3,C] right=[28,M]";
+         "SWAP 1";
+         "SWAP 5";
+         "ADD id=6 left=[20,G] right=[32,K]";
+         "ADD id=7 left=[4,E] right=[21,N]";
        ])
