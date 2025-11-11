@@ -22,12 +22,13 @@ print_endline
    | "quest5", "1" -> Int.to_string @@ Quest5.part1 @@ List.hd lines
    | "quest5", "2" -> Quest5.part2 @@ lines
    | "quest5", "3" -> Int.to_string @@ Quest5.part3 lines
-   | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
-   | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
-   | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
    | "quest6", "1" -> Int.to_string @@ Quest6.part1 @@ List.hd lines
    | "quest6", "2" -> Int.to_string @@ Quest6.part2 @@ List.hd lines
    | "quest6", "3" ->
        Int.to_string
        @@ Quest6.part3 (List.hd lines) ~num_repeats:1000 ~distance:1000
+   | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
+   | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
+   | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
+   | "story1-quest2", "1" -> Story1.quest2part1 lines
    | _ -> failwith "invalid argument")

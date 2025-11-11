@@ -4,3 +4,4 @@ val concat_ints : int list -> int
 val mod_positive : int -> int -> int
 val mod_exp: int -> int -> int -> int
 val sum_list: int list -> int
+val (--): int -> int -> int list

@@ -27,3 +27,8 @@ let concat_ints l =
   Int.of_string @@ String.concat @@ List.map ~f:(Printf.sprintf "%d") l
 
 let sum_list = List.fold ~f:( + ) ~init:0
+
+(* https://stackoverflow.com/a/244104 *)
+let ( -- ) i j =
+  let rec aux n acc = if n < i then acc else aux (n - 1) (n :: acc) in
+  aux j []

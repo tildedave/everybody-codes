@@ -128,3 +128,91 @@ let%test_unit "quest 1 part3 (given 2)" =
          "A=7681 B=9603 C=5681 X=716116871 Y=6421884967 Z=66298999264 M=196";
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
        ])
+
+type tree = Leaf | Node of (int * string) * tree * tree
+
+let rec tree_insert tree (n, label) =
+  match tree with
+  | Leaf -> Node ((n, label), Leaf, Leaf)
+  | Node (d, left, right) ->
+      if n < fst d then Node (d, tree_insert left (n, label), right)
+      else if n > fst d then Node (d, left, tree_insert right (n, label))
+      else failwith "duplicate inserted"
+
+let process_line (left_tree, right_tree) s =
+  Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
+    (fun _ ln llabel rn rlabel ->
+      ( tree_insert left_tree (ln, Char.to_string llabel),
+        tree_insert right_tree (rn, Char.to_string rlabel) ))
+
+(* let rec nodes_per_level tree n =
+   match (tree, n) with
+   | Leaf, _ -> 0
+   | _, 0 -> 1
+   | Node (_, left, right), n ->
+       nodes_per_level left (n - 1) + nodes_per_level right (n - 1) *)
+
+let rec height tree =
+  match tree with
+  | Leaf -> 0
+  | Node (_, left, right) -> 1 + max (height left) (height right)
+
+let rec message_per_level tree n =
+  match (tree, n) with
+  | Leaf, _ -> ""
+  | Node ((_, s), _, _), 0 -> s
+  | Node (_, left, right), n ->
+      String.append
+        (message_per_level left (n - 1))
+        (message_per_level right (n - 1))
+
+let max_message_per_tree tree =
+  let tree_height = height tree in
+  0 -- (tree_height - 1)
+  |> List.map ~f:(message_per_level tree)
+  |> List.max_elt ~compare:(fun s1 s2 ->
+         compare_int (String.length s1) (String.length s2))
+  |> Option.value_exn
+
+let quest2part1 l =
+  let left, right = List.fold ~f:process_line ~init:(Leaf, Leaf) l in
+  String.append (max_message_per_tree left) (max_message_per_tree right)
+
+let%test_unit "quest1part1 (given, part 1)" =
+  [%test_eq: string] "CFGNLK"
+    (quest2part1
+       [
+         "ADD id=1 left=[10,A] right=[30,H]";
+         "ADD id=2 left=[15,D] right=[25,I]";
+         "ADD id=3 left=[12,F] right=[31,J]";
+         "ADD id=4 left=[5,B] right=[27,L]";
+         "ADD id=5 left=[3,C] right=[28,M]";
+         "ADD id=6 left=[20,G] right=[32,K]";
+         "ADD id=7 left=[4,E] right=[21,N]";
+       ])
+
+let%test_unit "quest1part1 (given, part 2)" =
+  [%test_eq: string] "EVERYBODYCODES"
+    (quest2part1
+       [
+         "ADD id=1 left=[160,E] right=[175,S]";
+         "ADD id=2 left=[140,W] right=[224,D]";
+         "ADD id=3 left=[122,U] right=[203,F]";
+         "ADD id=4 left=[204,N] right=[114,G]";
+         "ADD id=5 left=[136,V] right=[256,H]";
+         "ADD id=6 left=[147,G] right=[192,O]";
+         "ADD id=7 left=[232,I] right=[154,K]";
+         "ADD id=8 left=[118,E] right=[125,Y]";
+         "ADD id=9 left=[102,A] right=[210,D]";
+         "ADD id=10 left=[183,Q] right=[254,E]";
+         "ADD id=11 left=[146,E] right=[148,C]";
+         "ADD id=12 left=[173,Y] right=[299,S]";
+         "ADD id=13 left=[190,B] right=[277,B]";
+         "ADD id=14 left=[124,T] right=[142,N]";
+         "ADD id=15 left=[153,R] right=[133,M]";
+         "ADD id=16 left=[252,D] right=[276,M]";
+         "ADD id=17 left=[258,I] right=[245,P]";
+         "ADD id=18 left=[117,O] right=[283,!]";
+         "ADD id=19 left=[212,O] right=[127,R]";
+         "ADD id=20 left=[278,A] right=[169,C]";
+       ])
