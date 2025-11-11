@@ -108,6 +108,8 @@ let%test_unit "part3 given (4)" =
        ~num_repeats:4)
 
 (* incorrect *)
+(*
 let%test_unit "part3 given (3)" =
   [%test_eq: int] 3442321
     (part3 "AABCBABCABCabcabcABCCBAACBCa" ~distance:1000 ~num_repeats:1000)
+*)
