@@ -25,3 +25,5 @@ let%test_unit "mod_exp" = [%test_eq: int] 1 (mod_exp 5 8 13)
 
 let concat_ints l =
   Int.of_string @@ String.concat @@ List.map ~f:(Printf.sprintf "%d") l
+
+let sum_list = List.fold ~f:( + ) ~init:0

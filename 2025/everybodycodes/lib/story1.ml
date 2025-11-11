@@ -25,17 +25,16 @@ let%test_unit "part1 (eni 2) " = [%test_eq: int] 311193 (eni 3 5 16)
 let%test_unit "part2 (eni)" = [%test_eq: int] 34213 (eni ~only:5 2 7 5)
 let%test_unit "part2 (eni 2)" = [%test_eq: int] 111931 (eni ~only:5 3 8 16)
 
-let eni_line ?only:take_opt s =
-  let e = eni ?only:take_opt in
+let eni_line e s =
   Stdlib.Scanf.sscanf s "A=%d B=%d C=%d X=%d Y=%d Z=%d M=%d"
     (fun a b c x y z m -> e a x m + e b y m + e c z m)
 
-let highest_number ?only:take_opt l =
+let highest_number eni_line_fn l =
   Option.value_exn
-  @@ List.max_elt (List.map ~f:(eni_line ?only:take_opt) l) ~compare:compare_int
+  @@ List.max_elt (List.map ~f:eni_line_fn l) ~compare:compare_int
 
-let quest1part1 = highest_number ?only:None
-let quest1part2 = highest_number ?only:(Some 5)
+let quest1part1 = highest_number (eni_line (eni ?only:None))
+let quest1part2 = highest_number (eni_line (eni ?only:(Some 5)))
 
 let%test_unit "quest 1 part1 (given)" =
   [%test_eq: int] 11611972920
@@ -64,6 +63,64 @@ let%test_unit "quest 1 part2 (given)" =
 let%test_unit "quest 1 part2 (given 2)" =
   [%test_eq: int] 1507702060886
     (quest1part2
+       [
+         "A=3657 B=3583 C=9716 X=903056852 Y=9283895500 Z=85920867478 M=188";
+         "A=6061 B=4425 C=5082 X=731145782 Y=1550090416 Z=87586428967 M=107";
+         "A=7818 B=5395 C=9975 X=122388873 Y=4093041057 Z=58606045432 M=102";
+         "A=7681 B=9603 C=5681 X=716116871 Y=6421884967 Z=66298999264 M=196";
+         "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
+       ])
+
+let rec _residues_part3 score l n m ~seen =
+  let next = score * n % m in
+  if Set.mem seen next then
+    List.split_while ~f:(fun x -> not (equal x next)) (List.rev l)
+  else _residues_part3 next (next :: l) n m ~seen:(Set.add seen next)
+
+let eni_part3 n exp m =
+  let start, residue_list =
+    _residues_part3 1 [] n m ~seen:(Base.Set.empty (module Int))
+  in
+  let start_len, residue_len = (List.length start, List.length residue_list) in
+  if exp < start_len then sum_list (List.take start exp)
+  else
+    let num_repeats, overflow =
+      ((exp - start_len) / residue_len, (exp - start_len) % residue_len)
+    in
+    sum_list start
+    + (sum_list residue_list * num_repeats)
+    + sum_list (List.take residue_list overflow)
+
+let%test_unit "part3 (eni)" = [%test_eq: int] 19 (eni_part3 2 7 5)
+let%test_unit "part3 (eni 2) " = [%test_eq: int] 48 (eni_part3 3 8 16)
+let%test_unit "part3 (eni 3)" = [%test_eq: int] 132000 (eni_part3 4 3000 110)
+let%test_unit "part3 (eni 4)" = [%test_eq: int] 616000 (eni_part3 4 14000 110)
+let%test_unit "part3 (eni 5)" = [%test_eq: int] 825000 (eni_part3 6 15000 110)
+let%test_unit "part3 (eni 6)" = [%test_eq: int] 559940 (eni_part3 4 14000 120)
+let%test_unit "part3 (eni 7)" = [%test_eq: int] 910000 (eni_part3 8 14000 130)
+let%test_unit "part3 (eni 8)" = [%test_eq: int] 479880 (eni_part3 8 6000 160)
+let%test_unit "part3 (eni 9)" = [%test_eq: int] 1519880 (eni_part3 8 19000 160)
+let%test_unit "part3 (eni 10)" = [%test_eq: int] 1279880 (eni_part3 8 16000 160)
+
+(* so everything repeats eventually, we can *)
+
+let quest1part3 = highest_number (eni_line eni_part3)
+
+let%test_unit "quest 1 part3 (given)" =
+  [%test_eq: int] 3279640
+    (quest1part3
+       [
+         "A=4 B=4 C=6 X=3000 Y=14000 Z=15000 M=110";
+         "A=8 B=4 C=7 X=8000 Y=14000 Z=16000 M=120";
+         "A=2 B=8 C=6 X=2000 Y=14000 Z=15000 M=130";
+         "A=5 B=9 C=6 X=8000 Y=16000 Z=18000 M=140";
+         "A=5 B=9 C=7 X=6000 Y=16000 Z=18000 M=150";
+         "A=8 B=8 C=8 X=6000 Y=19000 Z=16000 M=160";
+       ])
+
+let%test_unit "quest 1 part3 (given 2)" =
+  [%test_eq: int] 7276515438396
+    (quest1part3
        [
          "A=3657 B=3583 C=9716 X=903056852 Y=9283895500 Z=85920867478 M=188";
          "A=6061 B=4425 C=5082 X=731145782 Y=1550090416 Z=87586428967 M=107";
