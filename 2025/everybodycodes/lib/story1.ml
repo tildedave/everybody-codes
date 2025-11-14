@@ -129,57 +129,145 @@ let%test_unit "quest 1 part3 (given 2)" =
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
        ])
 
-type tree = Leaf | Node of (int * int * string) * tree * tree
+type tree_node = Node of int * string
+type tree = Leaf | Branch of int * tree_node * tree * tree
+(*
+   type tree3 =
+     | Leaf3
+     | Branch of (int * tree_node) * tree3 ref * tree3 ref * tree3 ref *)
 
-let rec tree_insert tree (id, n, label) =
+let compare_tree_node (Node (n, _)) (Node (m, _)) = compare n m
+
+let rec tree_insert tree id node =
   match tree with
-  | Leaf -> Node ((id, n, label), Leaf, Leaf)
-  | Node ((id', n', label'), left, right) ->
-      if n < n' then
-        Node ((id', n', label'), tree_insert left (id, n, label), right)
-      else if n > n' then
-        Node ((id', n', label'), left, tree_insert right (id, n, label))
-      else failwith "duplicate inserted"
+  | Leaf -> Branch (id, node, Leaf, Leaf)
+  | Branch (id', node', left, right) -> (
+      match compare_tree_node node node' with
+      | -1 -> Branch (id', node', tree_insert left id node, right)
+      | 1 -> Branch (id', node', left, tree_insert right id node)
+      | _ -> failwith "duplicate inserted")
 
-(* let rec nodes_per_level tree n =
-   match (tree, n) with
-   | Leaf, _ -> 0
-   | _, 0 -> 1
-   | Node (_, left, right), n ->
-       nodes_per_level left (n - 1) + nodes_per_level right (n - 1) *)
+(* let rec tree3_insert tree_ref id n =
+   match !tree_ref with
+   | Leaf3 -> tree_ref := Branch ((id, n), ref Leaf3, ref Leaf3, tree_ref)
+   | Branch ((_, n'), left_ref, right_ref, _) ->
+       if tree_node_lt n n' then tree3_insert left_ref id n
+       else if tree_node_lt n' n then tree3_insert right_ref id n
+       else failwith "duplicate inserted" *)
+
+(* let tree3_find tree_ref id =
+   let rec _tree3_find tree_ref id hash found =
+     match !tree_ref with
+     | Leaf3 -> []
+     | Node3 ((id', n', label'), left_ref, right_ref) =
+       if equal id id' then *)
+
+(* for now let's assume no child/parent swaps
+   I guess I coded it to handle it OK *)
+(* let rec tree3_find tree_ref id =
+     let rec _tree3_find tree_ref id found =
+       match !tree_ref with
+       | Leaf3 -> []
+       | Branch ((id', _), left_ref, right_ref, _) ->
+           if
+             List.mem found tree_ref ~equal:(fun t1 t2 ->
+                 match (!t1, !t2) with
+                 | Branch ((_, n), _, _, _), Branch ((_, n'), _, _, _) ->
+                     equal_tree_node n n'
+                 | _ -> failwith "invalid")
+           then []
+           else
+             (if equal id id' then tree_ref :: found else found)
+             |> _tree3_find left_ref id |> _tree3_find right_ref id
+     in
+     _tree3_find tree_ref id []
+
+   let rec tree3_swap left_tree_ref right_ref id =
+     match List.append (tree3_find left_tree_ref id) (tree3_find right_ref id) with
+     | [ tree1_ref; tree2_ref ] -> (
+         match (!tree1_ref, !tree2_ref) with
+         | Branch (_, _, _, tree1_parent), Branch (_, _, _, tree2_parent) ->
+             tree1_parent
+         | _ -> failwith "invalid find") *)
 
 let rec height tree =
   match tree with
   | Leaf -> 0
-  | Node (_, left, right) -> 1 + max (height left) (height right)
+  | Branch (_, _, left, right) -> 1 + max (height left) (height right)
 
 let rec message_per_level tree n =
   match (tree, n) with
   | Leaf, _ -> ""
-  | Node ((_, _, s), _, _), 0 -> s
-  | Node (_, left, right), n ->
+  | Branch (_, Node (_, s), _, _), 0 -> s
+  | Branch (_, _, left, right), n ->
       String.append
         (message_per_level left (n - 1))
         (message_per_level right (n - 1))
 
-let rec find tree id =
+let rec find_tree tree id =
   match tree with
-  | Leaf -> None
-  | Node ((id', n, s), left, right) ->
-      if equal id id' then Some (n, s)
-      else Option.first_some (find right id) (find left id)
+  | Leaf -> []
+  | Branch (id', _, left, right) ->
+      (* an id that's a subtree of another id seems hard to figure out how make
+         work so let's pretend it doesn't matter yet *)
+      if equal id id' then [ tree ]
+      else List.append (find_tree right id) (find_tree left id)
 
-let rec replace tree id (a, s) =
+let rec replace_id tree id node =
   match tree with
   | Leaf -> Leaf
-  | Node ((id', a', s'), left, right) ->
-      if equal id id' then Node ((id, a, s), left, right)
-      else Node ((id', a', s'), replace left id (a, s), replace right id (a, s))
+  | Branch (id', node', left, right) ->
+      if equal id id' then Branch (id, node, left, right)
+      else Branch (id', node', replace_id left id node, replace_id right id node)
 
-let swap (left_tree, right_tree) id =
-  let left, right = (find left_tree id, find right_tree id) in
-  ( replace left_tree id (Option.value_exn right),
-    replace right_tree id (Option.value_exn left) )
+let rec replace_tree tree ~id ~new_tree : tree =
+  match tree with
+  | Leaf -> Leaf
+  | Branch (id', node, left, right) ->
+      if equal id id' then new_tree
+      else
+        Branch
+          ( id',
+            node,
+            replace_tree left ~id ~new_tree,
+            replace_tree right ~id ~new_tree )
+
+let tree_id tree =
+  match tree with Leaf -> failwith "invalid" | Branch (b, _, _, _) -> b
+
+let swap ?(part3 = false) (left_tree, right_tree) id =
+  let left_matches, right_matches =
+    (find_tree left_tree id, find_tree right_tree id)
+  in
+  if part3 then
+    match (left_matches, right_matches) with
+    | [ tree1; tree2 ], [] ->
+        ( left_tree
+          |> replace_tree ~id:(tree_id tree1) ~new_tree:tree1
+          |> replace_tree ~id:(tree_id tree2) ~new_tree:tree2,
+          right_tree )
+    | [], [ tree1; tree2 ] ->
+        ( left_tree,
+          right_tree
+          |> replace_tree ~id:(tree_id tree1) ~new_tree:tree1
+          |> replace_tree ~id:(tree_id tree2) ~new_tree:tree2 )
+    | [ tree1 ], [ tree2 ] ->
+        ( replace_tree tree1 ~id:(tree_id tree2) ~new_tree:tree2,
+          replace_tree tree2 ~id:(tree_id tree1) ~new_tree:tree1 )
+    | _ ->
+        let _ =
+          Stdio.printf "%d %d\n" (List.length left_matches)
+            (List.length right_matches)
+        in
+        failwith "impossible maybe"
+  else
+    let replace_arg g =
+      match g with
+      | Leaf -> failwith "impossible"
+      | Branch (_, node, _, _) -> node
+    in
+    ( replace_id left_tree id (replace_arg (List.hd_exn right_matches)),
+      replace_id right_tree id (replace_arg (List.hd_exn left_matches)) )
 
 let max_message_per_tree tree =
   let tree_height = height tree in
@@ -189,24 +277,24 @@ let max_message_per_tree tree =
          compare_int (String.length s1) (String.length s2))
   |> Option.value_exn
 
-let process_line (left_tree, right_tree) s =
+let process_line ?(part3 = false) (left_tree, right_tree) s =
   match String.substr_index s ~pattern:"SWAP" with
   | Some _ ->
       Stdlib.Scanf.sscanf s "SWAP %d" (fun id ->
-          swap (left_tree, right_tree) id)
+          swap ~part3 (left_tree, right_tree) id)
   | None ->
       Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
         (fun id ln llabel rn rlabel ->
-          ( tree_insert left_tree (id, ln, Char.to_string llabel),
-            tree_insert right_tree (id, rn, Char.to_string rlabel) ))
+          ( tree_insert left_tree id (Node (ln, Char.to_string llabel)),
+            tree_insert right_tree id (Node (rn, Char.to_string rlabel)) ))
 
-let quest2part1 l =
-  let left, right = List.fold ~f:process_line ~init:(Leaf, Leaf) l in
+let quest2 ?(part3 = false) l =
+  let left, right = List.fold ~f:(process_line ~part3) ~init:(Leaf, Leaf) l in
   String.append (max_message_per_tree left) (max_message_per_tree right)
 
-let%test_unit "quest2part1 (given, part 1)" =
+let%test_unit "quest2 (given, part 1)" =
   [%test_eq: string] "CFGNLK"
-    (quest2part1
+    (quest2
        [
          "ADD id=1 left=[10,A] right=[30,H]";
          "ADD id=2 left=[15,D] right=[25,I]";
@@ -217,9 +305,9 @@ let%test_unit "quest2part1 (given, part 1)" =
          "ADD id=7 left=[4,E] right=[21,N]";
        ])
 
-let%test_unit "quest2part1 (given, part 2)" =
+let%test_unit "quest2 (given, part 2)" =
   [%test_eq: string] "EVERYBODYCODES"
-    (quest2part1
+    (quest2
        [
          "ADD id=1 left=[160,E] right=[175,S]";
          "ADD id=2 left=[140,W] right=[224,D]";
@@ -245,7 +333,7 @@ let%test_unit "quest2part1 (given, part 2)" =
 
 let%test_unit "quest2part2 (given, first)" =
   [%test_eq: string] "MGFLNK"
-    (quest2part1
+    (quest2
        [
          "ADD id=1 left=[10,A] right=[30,H]";
          "ADD id=2 left=[15,D] right=[25,I]";
@@ -256,4 +344,37 @@ let%test_unit "quest2part2 (given, first)" =
          "SWAP 5";
          "ADD id=6 left=[20,G] right=[32,K]";
          "ADD id=7 left=[4,E] right=[21,N]";
+       ])
+
+let%test_unit "quest2 part3 (given, first)" =
+  [%test_eq: string] "DJMGL"
+    (quest2 ~part3:true
+       [
+         "ADD id=1 left=[10,A] right=[30,H]";
+         "ADD id=2 left=[15,D] right=[25,I]";
+         "ADD id=3 left=[12,F] right=[31,J]";
+         "ADD id=4 left=[5,B] right=[27,L]";
+         "ADD id=5 left=[3,C] right=[28,M]";
+         "SWAP 1";
+         "SWAP 5";
+         "ADD id=6 left=[20,G] right=[32,K]";
+         "ADD id=7 left=[4,E] right=[21,N]";
+         "SWAP 2";
+       ])
+
+let%test_unit "quest2 part3 (given, second)" =
+  [%test_eq: string] "DJCGL"
+    (quest2 ~part3:true
+       [
+         "ADD id=1 left=[10,A] right=[30,H]";
+         "ADD id=2 left=[15,D] right=[25,I]";
+         "ADD id=3 left=[12,F] right=[31,J]";
+         "ADD id=4 left=[5,B] right=[27,L]";
+         "ADD id=5 left=[3,C] right=[28,M]";
+         "SWAP 1";
+         "SWAP 5";
+         "ADD id=6 left=[20,G] right=[32,K]";
+         "ADD id=7 left=[4,E] right=[21,N]";
+         "SWAP 2";
+         "SWAP 5";
        ])
