@@ -129,7 +129,7 @@ let%test_unit "quest 1 part3 (given 2)" =
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
        ])
 
-type tree_node = Node of int * string
+type tree_node = Node of int * string [@@deriving eq]
 type tree = Leaf | Branch of int * tree_node * tree * tree
 (*
    type tree3 =
@@ -210,6 +210,7 @@ let rec find_tree tree id =
   | Branch (id', _, left, right) ->
       (* an id that's a subtree of another id seems hard to figure out how make
          work so let's pretend it doesn't matter yet *)
+      let _ = Stdio.printf "[%d] looking at %d\n" id id' in
       if equal id id' then [ tree ]
       else List.append (find_tree right id) (find_tree left id)
 
@@ -220,20 +221,20 @@ let rec replace_id tree id node =
       if equal id id' then Branch (id, node, left, right)
       else Branch (id', node', replace_id left id node, replace_id right id node)
 
-let rec replace_tree tree ~id ~new_tree : tree =
+let rec replace_tree tree ~id ~node ~new_tree : tree =
   match tree with
   | Leaf -> Leaf
-  | Branch (id', node, left, right) ->
-      if equal id id' then new_tree
+  | Branch (id', node', left, right) ->
+      if equal id id' && equal_tree_node node node' then new_tree
       else
         Branch
           ( id',
             node,
-            replace_tree left ~id ~new_tree,
-            replace_tree right ~id ~new_tree )
+            replace_tree left ~id ~node ~new_tree,
+            replace_tree right ~id ~node ~new_tree )
 
 let tree_id tree =
-  match tree with Leaf -> failwith "invalid" | Branch (b, _, _, _) -> b
+  match tree with Branch (_, n, _, _) -> n | Leaf -> failwith "bad"
 
 let swap ?(part3 = false) (left_tree, right_tree) id =
   let left_matches, right_matches =
@@ -243,22 +244,24 @@ let swap ?(part3 = false) (left_tree, right_tree) id =
     match (left_matches, right_matches) with
     | [ tree1; tree2 ], [] ->
         ( left_tree
-          |> replace_tree ~id:(tree_id tree1) ~new_tree:tree1
-          |> replace_tree ~id:(tree_id tree2) ~new_tree:tree2,
+          |> replace_tree ~id ~node:(tree_id tree1) ~new_tree:tree2
+          |> replace_tree ~id ~node:(tree_id tree2) ~new_tree:tree1,
           right_tree )
     | [], [ tree1; tree2 ] ->
         ( left_tree,
           right_tree
-          |> replace_tree ~id:(tree_id tree1) ~new_tree:tree1
-          |> replace_tree ~id:(tree_id tree2) ~new_tree:tree2 )
+          |> replace_tree ~id ~node:(tree_id tree1) ~new_tree:tree2
+          |> replace_tree ~id ~node:(tree_id tree2) ~new_tree:tree1 )
     | [ tree1 ], [ tree2 ] ->
-        ( replace_tree tree1 ~id:(tree_id tree2) ~new_tree:tree2,
-          replace_tree tree2 ~id:(tree_id tree1) ~new_tree:tree1 )
+        ( replace_tree left_tree ~id ~node:(tree_id tree1) ~new_tree:tree2,
+          replace_tree right_tree ~id ~node:(tree_id tree2) ~new_tree:tree1 )
     | _ ->
         let _ =
-          Stdio.printf "%d %d\n" (List.length left_matches)
+          Stdio.printf "%d %d %d\n" (List.length left_matches)
             (List.length right_matches)
+            id
         in
+
         failwith "impossible maybe"
   else
     let replace_arg g =
