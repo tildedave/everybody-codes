@@ -34,3 +34,6 @@ let ( -- ) i j =
   aux j []
 
 let set_add_all s = List.fold ~init:s ~f:Set.add
+
+let string_to_int_list ?(on = ',') s =
+  List.map ~f:Int.of_string @@ String.split ~on s
