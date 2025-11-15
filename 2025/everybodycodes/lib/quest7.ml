@@ -92,7 +92,6 @@ let last_char s = String.get s (String.length s - 1)
 let%test_unit "last_char" = [%test_eq: char] 't' (last_char "Xaryt")
 
 let rec expand ~mapping s ~prefix ~min_length ~max_length =
-  Stdio.printf ">> %s <<\n" prefix;
   Set.fold ~init:s
     ~f:(fun sofar next_ch ->
       let next_string = String.append prefix (Char.to_string next_ch) in
@@ -112,16 +111,13 @@ let part3 l =
   let m =
     List.fold ~f:parse_suffixes ~init:(Base.Map.empty (module Char)) suffixes
   in
-  Stdio.printf ">> %s <<\n" "joe";
   names
   |> List.filter ~f:(is_valid m)
-  |> List.fold ~init:0 ~f:(fun acc name ->
-         acc
-         + Set.count
-             ~f:(fun _ -> true)
-             (expand ~mapping:m ~prefix:name
-                (Set.empty (module String))
-                ~max_length:11 ~min_length:7))
+  |> List.fold
+       ~init:(Set.empty (module String))
+       ~f:(fun s name ->
+         expand ~mapping:m ~prefix:name s ~max_length:11 ~min_length:7)
+  |> Set.count ~f:(fun _ -> true)
 
 let%test_unit "part3 given" =
   [%test_eq: int] 25
