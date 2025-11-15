@@ -32,3 +32,5 @@ let sum_list = List.fold ~f:( + ) ~init:0
 let ( -- ) i j =
   let rec aux n acc = if n < i then acc else aux (n - 1) (n :: acc) in
   aux j []
+
+let set_add_all s = List.fold ~init:s ~f:Set.add

@@ -27,6 +27,8 @@ print_endline
    | "quest6", "3" ->
        Int.to_string
        @@ Quest6.part3 (List.hd lines) ~num_repeats:1000 ~distance:1000
+   | "quest7", "1" -> Quest7.part1 lines
+   | "quest7", "2" -> Int.to_string @@ Quest7.part2 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
