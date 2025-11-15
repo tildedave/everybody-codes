@@ -33,6 +33,7 @@ print_endline
    | "quest8", "1" -> Int.to_string @@ Quest8.part1 @@ List.hd lines
    | "quest8", "2" -> Int.to_string @@ Quest8.part2 @@ List.hd lines
    | "quest8", "3" -> Int.to_string @@ Quest8.part3 @@ List.hd lines
+   | "quest9", "1" -> Int.to_string @@ Quest9.part1 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
