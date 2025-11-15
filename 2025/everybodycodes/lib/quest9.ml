@@ -1,6 +1,6 @@
 open Base
-open Base.With_return
 open Util
+open Core
 
 let is_child candidate others =
   with_return (fun r ->
@@ -50,6 +50,15 @@ let all_sequences l =
   set_add_all
     (Set.empty (module String))
     (List.map ~f:(fun s -> List.nth_exn (String.split ~on:':' s) 1) l)
+
+let scale_mapping l =
+  List.fold
+    ~init:(Map.empty (module String))
+    ~f:(fun acc s ->
+      match String.split ~on:':' s with
+      | [ id_str; l' ] -> Map.add_exn acc ~key:l' ~data:(Int.of_string id_str)
+      | _ -> failwith "bad input")
+    l
 
 let part1 l =
   let seqs = all_sequences l in
@@ -107,4 +116,79 @@ let%test_unit "part2 (given)" =
          "5:GCAGCTTAGTATGACCGCCAAATCGCGACTCA";
          "6:AGTGGAACCTTGGATAGTCTCATATAGCGGCA";
          "7:GGCGTAATAATCGGATGCTGCAGAGGCTGCTG";
+       ])
+
+let part3 l =
+  let seqs = all_sequences l in
+  let all_pairs =
+    let _set_list = Set.to_list seqs in
+    List.cartesian_product _set_list _set_list
+  in
+  let set_mapping =
+    Set.fold
+      ~init:(Map.empty (module String))
+      ~f:(fun acc s -> Map.add_exn acc ~key:s ~data:(Union_find.create s))
+      seqs
+  in
+  Set.iter
+    ~f:(fun s ->
+      match find_parents s all_pairs with
+      | None -> ()
+      | Some (s1, s2) ->
+          Union_find.union
+            (Map.find_exn set_mapping s)
+            (Map.find_exn set_mapping s1);
+          Union_find.union
+            (Map.find_exn set_mapping s1)
+            (Map.find_exn set_mapping s2))
+    seqs;
+  let winner_group =
+    set_mapping
+    |> Map.fold
+         ~init:(Map.empty (module String))
+         ~f:(fun ~key:_ ~data acc ->
+           Map.update acc
+             ~f:(fun v -> match v with None -> 1 | Some n -> n + 1)
+             (Union_find.get data))
+    |> Map.fold
+         ~f:(fun ~key ~data (winner, max_so_far) ->
+           if data > max_so_far then (key, data) else (winner, max_so_far))
+         ~init:("", 0)
+    |> fst
+  in
+  let mapping = scale_mapping l in
+  Map.fold ~init:0
+    ~f:(fun ~key ~data acc ->
+      if equal_string (Union_find.get data) winner_group then
+        acc + Map.find_exn mapping key
+      else acc)
+    set_mapping
+
+(* find where in our current forest this one goes
+   I guess in full generality this requires a disjoint set data structure bleh *)
+let%test_unit "part3 (given)" =
+  [%test_eq: int] 12
+    (part3
+       [
+         "1:GCAGGCGAGTATGATACCCGGCTAGCCACCCC";
+         "2:TCTCGCGAGGATATTACTGGGCCAGACCCCCC";
+         "3:GGTGGAACATTCGAAAGTTGCATAGGGTGGTG";
+         "4:GCTCGCGAGTATATTACCGAACCAGCCCCTCA";
+         "5:GCAGCTTAGTATGACCGCCAAATCGCGACTCA";
+         "6:AGTGGAACCTTGGATAGTCTCATATAGCGGCA";
+         "7:GGCGTAATAATCGGATGCTGCAGAGGCTGCTG";
+       ])
+
+let%test_unit "part3 (given; 2)" =
+  [%test_eq: int] 36
+    (part3
+       [
+         "1:GCAGGCGAGTATGATACCCGGCTAGCCACCCC";
+         "2:TCTCGCGAGGATATTACTGGGCCAGACCCCCC";
+         "3:GGTGGAACATTCGAAAGTTGCATAGGGTGGTG";
+         "4:GCTCGCGAGTATATTACCGAACCAGCCCCTCA";
+         "5:GCAGCTTAGTATGACCGCCAAATCGCGACTCA";
+         "6:AGTGGAACCTTGGATAGTCTCATATAGCGGCA";
+         "7:GGCGTAATAATCGGATGCTGCAGAGGCTGCTG";
+         "8:GGCGTAAAGTATGGATGCTGGCTAGGCACCCG";
        ])
