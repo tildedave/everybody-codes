@@ -257,39 +257,51 @@ let is_losing_state (xmax, ymax) sheep_bb =
 
 (* every sheep is on the final row of the board*)
 
+let%test_unit "is_losing_state" =
+  [%test_eq: bool] true
+    (let l = [ "..."; "..."; "..."; "..."; "###" ] in
+     is_losing_state (bounds l) (to_bb 'S' l))
+
 let part3 l =
   let table, bounds = (Hashtbl.create (module IntPair), bounds l) in
   let initial_sheep, hideouts = (to_bb 'S' l, to_bb '#' l) in
   let dragon_start = idx bounds @@ find_start l in
   let rec helper sheep_bb dragon_location =
+    Stdio.printf "investigating %s, dragon at %d\n"
+      (bb_to_string bounds sheep_bb)
+      dragon_location;
     match Hashtbl.find table (sheep_bb, dragon_location) with
     | Some n -> n
     | None ->
-        if sheep_bb = 0 then (
-          Hashtbl.set table ~key:(sheep_bb, dragon_location) ~data:1;
-          1)
-        else if is_losing_state bounds sheep_bb then (
-          Hashtbl.set table ~key:(sheep_bb, dragon_location) ~data:0;
-          0)
-        else
-          let sheep_moves = next_sheep_boards bounds sheep_bb dragon_location in
-          (* need to watch out for the every-sheep-is-on-the-last-row case *)
-          if List.is_empty sheep_moves then
-            List.fold ~init:0
-              ~f:(fun acc next_dragon_location ->
-                acc
-                + helper
-                    (eat_sheep sheep_bb hideouts next_dragon_location)
-                    next_dragon_location)
-              (dragon_moves_from bounds dragon_location)
-          else
-            List.fold ~init:0
-              ~f:(fun acc (next_sheep_bb, next_dragon_location) ->
-                acc
-                + helper
-                    (eat_sheep next_sheep_bb hideouts next_dragon_location)
-                    next_dragon_location)
-              (List.cartesian_product sheep_moves
-                 (dragon_moves_from bounds dragon_location))
+        let result =
+          if sheep_bb = 0 then 1
+          else if is_losing_state bounds sheep_bb then 0
+          else (
+            Stdio.printf "not losing state %s %d\n"
+              (bb_to_string bounds sheep_bb)
+              dragon_location;
+            let sheep_moves =
+              next_sheep_boards bounds sheep_bb dragon_location
+            in
+            if List.is_empty sheep_moves then
+              List.fold ~init:0
+                ~f:(fun acc next_dragon_location ->
+                  acc
+                  + helper
+                      (eat_sheep sheep_bb hideouts next_dragon_location)
+                      next_dragon_location)
+                (dragon_moves_from bounds dragon_location)
+            else
+              List.fold ~init:0
+                ~f:(fun acc (next_sheep_bb, next_dragon_location) ->
+                  acc
+                  + helper
+                      (eat_sheep next_sheep_bb hideouts next_dragon_location)
+                      next_dragon_location)
+                (List.cartesian_product sheep_moves
+                   (dragon_moves_from bounds dragon_location)))
+        in
+        Hashtbl.set table ~key:(sheep_bb, dragon_location) ~data:result;
+        result
   in
   helper initial_sheep dragon_start
