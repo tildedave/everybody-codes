@@ -129,8 +129,8 @@ let%test_unit "quest 1 part3 (given 2)" =
          "A=7334 B=9016 C=8524 X=297284338 Y=1565962337 Z=86750102612 M=145";
        ])
 
-type tree_node = Node of int * string [@@deriving eq]
-type tree = Leaf | Branch of int * tree_node * tree * tree
+type tree_node = Node of int * string [@@deriving eq, show]
+type tree = Leaf | Branch of int * tree_node * tree * tree [@@deriving show]
 (*
    type tree3 =
      | Leaf3
@@ -228,7 +228,7 @@ let rec replace_tree tree ~id ~node ~new_tree : tree =
       else
         Branch
           ( id',
-            node,
+            node',
             replace_tree left ~id ~node ~new_tree,
             replace_tree right ~id ~node ~new_tree )
 
@@ -236,9 +236,21 @@ let tree_id tree =
   match tree with Branch (_, n, _, _) -> n | Leaf -> failwith "bad"
 
 let swap ?(part3 = false) (left_tree, right_tree) id =
+  if part3 then (
+    Stdio.printf "SWAP %d\n" id;
+    Stdio.printf "left tree: %s\n" (show_tree left_tree);
+    Stdio.printf "right tree: %s\n" (show_tree right_tree);
+    Stdio.printf "\n");
   let left_matches, right_matches =
     (find_tree left_tree id, find_tree right_tree id)
   in
+  if part3 then (
+    Stdio.printf "MATCHES %d\n" id;
+    Stdio.printf "found left matches: %s\n"
+      (String.concat ~sep:";" (List.map ~f:show_tree left_matches));
+    Stdio.printf "found right matches: %s\n"
+      (String.concat ~sep:";" (List.map ~f:show_tree right_matches));
+    Stdio.printf "\n");
   if part3 then
     match (left_matches, right_matches) with
     | [ tree1; tree2 ], [] ->
@@ -276,7 +288,12 @@ let process_line ?(part3 = false) (left_tree, right_tree) s =
   match String.substr_index s ~pattern:"SWAP" with
   | Some _ ->
       Stdlib.Scanf.sscanf s "SWAP %d" (fun id ->
-          swap ~part3 (left_tree, right_tree) id)
+          let result = swap ~part3 (left_tree, right_tree) id in
+          if part3 then
+            Stdio.printf "AFTER SWAP:\nleft: %s\nright: %s\n"
+              (show_tree @@ fst result)
+              (show_tree @@ snd result);
+          result)
   | None ->
       Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
         (fun id ln llabel rn rlabel ->
@@ -340,7 +357,7 @@ let%test_unit "quest2part2 (given, first)" =
          "ADD id=6 left=[20,G] right=[32,K]";
          "ADD id=7 left=[4,E] right=[21,N]";
        ])
-(*
+
 let%test_unit "quest2 part3 (given, first)" =
   [%test_eq: string] "DJMGL"
     (quest2 ~part3:true
@@ -372,4 +389,4 @@ let%test_unit "quest2 part3 (given, second)" =
          "ADD id=7 left=[4,E] right=[21,N]";
          "SWAP 2";
          "SWAP 5";
-       ]) *)
+       ])
