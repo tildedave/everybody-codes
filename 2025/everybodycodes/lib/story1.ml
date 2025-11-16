@@ -1,3 +1,5 @@
+[@@@ocaml.warning "-32"]
+
 open Base
 open Util
 
@@ -147,49 +149,6 @@ let rec tree_insert tree id node =
       | 1 -> Branch (id', node', left, tree_insert right id node)
       | _ -> failwith "duplicate inserted")
 
-(* let rec tree3_insert tree_ref id n =
-   match !tree_ref with
-   | Leaf3 -> tree_ref := Branch ((id, n), ref Leaf3, ref Leaf3, tree_ref)
-   | Branch ((_, n'), left_ref, right_ref, _) ->
-       if tree_node_lt n n' then tree3_insert left_ref id n
-       else if tree_node_lt n' n then tree3_insert right_ref id n
-       else failwith "duplicate inserted" *)
-
-(* let tree3_find tree_ref id =
-   let rec _tree3_find tree_ref id hash found =
-     match !tree_ref with
-     | Leaf3 -> []
-     | Node3 ((id', n', label'), left_ref, right_ref) =
-       if equal id id' then *)
-
-(* for now let's assume no child/parent swaps
-   I guess I coded it to handle it OK *)
-(* let rec tree3_find tree_ref id =
-     let rec _tree3_find tree_ref id found =
-       match !tree_ref with
-       | Leaf3 -> []
-       | Branch ((id', _), left_ref, right_ref, _) ->
-           if
-             List.mem found tree_ref ~equal:(fun t1 t2 ->
-                 match (!t1, !t2) with
-                 | Branch ((_, n), _, _, _), Branch ((_, n'), _, _, _) ->
-                     equal_tree_node n n'
-                 | _ -> failwith "invalid")
-           then []
-           else
-             (if equal id id' then tree_ref :: found else found)
-             |> _tree3_find left_ref id |> _tree3_find right_ref id
-     in
-     _tree3_find tree_ref id []
-
-   let rec tree3_swap left_tree_ref right_ref id =
-     match List.append (tree3_find left_tree_ref id) (tree3_find right_ref id) with
-     | [ tree1_ref; tree2_ref ] -> (
-         match (!tree1_ref, !tree2_ref) with
-         | Branch (_, _, _, tree1_parent), Branch (_, _, _, tree2_parent) ->
-             tree1_parent
-         | _ -> failwith "invalid find") *)
-
 let rec height tree =
   match tree with
   | Leaf -> 0
@@ -232,37 +191,42 @@ let rec replace_tree tree ~id ~node ~new_tree : tree =
             replace_tree left ~id ~node ~new_tree,
             replace_tree right ~id ~node ~new_tree )
 
+let rec replace_in_tree tree ~id ~node_to_new_trees : tree =
+  match tree with
+  | Leaf -> Leaf
+  | Branch (id', node', left, right) ->
+      if equal id id' then
+        match
+          List.find_exn node_to_new_trees ~f:(fun (node, _) ->
+              if equal_tree_node node node' then true else false)
+        with
+        | _, new_tree -> new_tree
+      else
+        Branch
+          ( id',
+            node',
+            replace_in_tree left ~id ~node_to_new_trees,
+            replace_in_tree right ~id ~node_to_new_trees )
+
 let tree_id tree =
   match tree with Branch (_, n, _, _) -> n | Leaf -> failwith "bad"
 
 let swap ?(part3 = false) (left_tree, right_tree) id =
-  if part3 then (
-    Stdio.printf "SWAP %d\n" id;
-    Stdio.printf "left tree: %s\n" (show_tree left_tree);
-    Stdio.printf "right tree: %s\n" (show_tree right_tree);
-    Stdio.printf "\n");
   let left_matches, right_matches =
     (find_tree left_tree id, find_tree right_tree id)
   in
-  if part3 then (
-    Stdio.printf "MATCHES %d\n" id;
-    Stdio.printf "found left matches: %s\n"
-      (String.concat ~sep:";" (List.map ~f:show_tree left_matches));
-    Stdio.printf "found right matches: %s\n"
-      (String.concat ~sep:";" (List.map ~f:show_tree right_matches));
-    Stdio.printf "\n");
   if part3 then
     match (left_matches, right_matches) with
     | [ tree1; tree2 ], [] ->
-        ( left_tree
-          |> replace_tree ~id ~node:(tree_id tree1) ~new_tree:tree2
-          |> replace_tree ~id ~node:(tree_id tree2) ~new_tree:tree1,
+        ( replace_in_tree left_tree ~id
+            ~node_to_new_trees:
+              [ (tree_id tree1, tree2); (tree_id tree2, tree1) ],
           right_tree )
     | [], [ tree1; tree2 ] ->
         ( left_tree,
-          right_tree
-          |> replace_tree ~id ~node:(tree_id tree1) ~new_tree:tree2
-          |> replace_tree ~id ~node:(tree_id tree2) ~new_tree:tree1 )
+          replace_in_tree right_tree ~id
+            ~node_to_new_trees:
+              [ (tree_id tree1, tree2); (tree_id tree2, tree1) ] )
     | [ tree1 ], [ tree2 ] ->
         ( replace_tree left_tree ~id ~node:(tree_id tree1) ~new_tree:tree2,
           replace_tree right_tree ~id ~node:(tree_id tree2) ~new_tree:tree1 )
@@ -288,12 +252,7 @@ let process_line ?(part3 = false) (left_tree, right_tree) s =
   match String.substr_index s ~pattern:"SWAP" with
   | Some _ ->
       Stdlib.Scanf.sscanf s "SWAP %d" (fun id ->
-          let result = swap ~part3 (left_tree, right_tree) id in
-          if part3 then
-            Stdio.printf "AFTER SWAP:\nleft: %s\nright: %s\n"
-              (show_tree @@ fst result)
-              (show_tree @@ snd result);
-          result)
+          swap ~part3 (left_tree, right_tree) id)
   | None ->
       Stdlib.Scanf.sscanf s "ADD id=%d left=[%d,%c] right=[%d,%c]"
         (fun id ln llabel rn rlabel ->
