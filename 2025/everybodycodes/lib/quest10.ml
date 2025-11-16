@@ -1,5 +1,8 @@
+[@@@ocaml.warning "-31-32"]
+
 open Base
 open Util
+open Core
 
 let moves_from (max_x, max_y) (x, y) =
   List.filter
@@ -36,15 +39,15 @@ let fold m ~init ~f ~neighbors start =
         (neighbors next))
   done
 
-module Coord = struct
+module IntPair = struct
   type t = int * int [@@deriving compare, sexp_of]
 
   let hash = Hashtbl.hash
 end
 
-module Coord_Comparator = struct
-  include Coord
-  include Base.Comparator.Make (Coord)
+module IntPair_Comparator = struct
+  include IntPair
+  include Base.Comparator.Make (IntPair)
 end
 
 module SearchState = struct
@@ -64,7 +67,7 @@ let find_start l =
   |> Option.value_exn
 
 let _part1 num_moves l =
-  let hits = Hash_set.create (module Coord) in
+  let hits = Hash_set.create (module IntPair) in
   fold
     (module SearchState)
     ~init:()
@@ -119,8 +122,8 @@ let kill_sheep hideouts sheep dragon_locations =
 
 let move_dragon bounds dragon_locations =
   Set.fold
-    ~init:(Set.empty (module Coord_Comparator))
-    ~f:(fun acc coord -> set_add_all acc (moves_from bounds coord))
+    ~init:(Set.empty (module IntPair_Comparator))
+    ~f:(fun acc coords -> set_add_all acc (moves_from bounds coords))
     dragon_locations
 
 let move_sheep_down xmax sheep =
@@ -132,7 +135,7 @@ let move_sheep_down xmax sheep =
 let _part2 num_rounds l =
   let xmax, ymax = bounds l in
   let dragon_locations =
-    ref @@ Set.add (Set.empty (module Coord_Comparator)) (find_start l)
+    ref @@ Set.add (Set.empty (module IntPair_Comparator)) (find_start l)
   in
   let hideouts, sheep = (filter_hideouts l, ref @@ filter_sheep l) in
   let num_killed = ref 0 in
@@ -165,3 +168,128 @@ let%test_unit "part2 (given)" =
          ".#...#.S#...S";
          "SS...#.S.#S..";
        ])
+(* part 3 won't have a lot of reuse from the other parts.
+
+   Game State: Sheep, Dragon location
+   Constants:  Bounds, Hideouts
+
+   Feels like bitboard time for the sheep, all examples are small enough
+*)
+
+let idx (xmax, _) (x, y) = (y * xmax) + x
+let set_bit bb i = (1 lsl i) lor bb
+let unset_bit bb i = lnot (1 lsl i) land bb
+let is_bit_set bb i = not @@ equal ((bb lsr i) land 1) 0
+
+let bb_to_string (xmax, ymax) bb =
+  String.of_char_list
+  @@ List.map
+       ~f:(fun i -> if is_bit_set bb i then '#' else '.')
+       (0 -- ((xmax * ymax) - 1))
+
+let to_bb ch l =
+  String.concat l
+  |> String.foldi ~init:0 ~f:(fun n acc ch' ->
+         if equal_char ch ch' then set_bit acc n else acc)
+
+let%test_unit "bb to string" =
+  [%test_eq: string] ".##.#........................."
+    (let l = [ ".SS.S"; "#...#"; "...#."; "##..#"; ".####"; "##D.#" ] in
+     bb_to_string (bounds l) (to_bb 'S' l))
+
+let bb_fold_bits ~init ~f bb =
+  let rec loop bb acc ~f =
+    if bb = 0 then acc
+    else
+      (* bitboards are "reversed" from visual inspection, this avoids having
+         to worry about padding *)
+      let shift = Int.ctz bb in
+      loop (unset_bit bb shift) (f shift acc) ~f
+  in
+  loop bb init ~f
+
+let bb_iter ~f bb =
+  let rec loop bb ~f =
+    if bb = 0 then ()
+    else
+      (* bitboards are "reversed" from visual inspection, this avoids having
+         to worry about padding *)
+      let shift = Int.ctz bb in
+      f shift;
+      loop (unset_bit bb shift) ~f
+  in
+  loop bb ~f
+
+(* each sheep can move down one *)
+let next_sheep_boards (xmax, ymax) sheep_bb dragon_location =
+  bb_fold_bits ~init:[]
+    ~f:(fun n acc ->
+      let next_idx = n + xmax in
+      (* First conditional indicates a sheep escaped and so it shouldn't be
+         considered in our seach tree *)
+      if next_idx > (xmax * ymax) - 1 || next_idx = dragon_location then acc
+      else set_bit (unset_bit sheep_bb n) next_idx :: acc)
+    sheep_bb
+
+(* OK looks right *)
+
+let dragon_moves_from (max_x, max_y) i =
+  List.map
+    ~f:(fun b -> idx (max_x, max_y) b)
+    (moves_from (max_x, max_y) (i % max_x, i / max_x))
+
+let eat_sheep sheep_bb hideouts_bb dragon_location =
+  if is_bit_set hideouts_bb dragon_location then sheep_bb
+  else unset_bit sheep_bb dragon_location
+
+let%test_unit "dragon moves from" =
+  [%test_eq: int list] [ 7; 11 ]
+    (List.sort ~compare (dragon_moves_from (5, 6) 0))
+
+(* solution will then be dynamic programming with the hashtbl of int [sheep] * int [dragon position] *)
+
+let is_losing_state (xmax, ymax) sheep_bb =
+  with_return (fun r ->
+      bb_iter
+        ~f:(fun n -> if n < xmax * (ymax - 1) then r.return false else ())
+        sheep_bb;
+      true)
+
+(* every sheep is on the final row of the board*)
+
+let part3 l =
+  let table, bounds = (Hashtbl.create (module IntPair), bounds l) in
+  let initial_sheep, hideouts = (to_bb 'S' l, to_bb '#' l) in
+  let dragon_start = idx bounds @@ find_start l in
+  let rec helper sheep_bb dragon_location =
+    match Hashtbl.find table (sheep_bb, dragon_location) with
+    | Some n -> n
+    | None ->
+        if sheep_bb = 0 then (
+          Hashtbl.set table ~key:(sheep_bb, dragon_location) ~data:1;
+          1)
+        else if is_losing_state bounds sheep_bb then (
+          Hashtbl.set table ~key:(sheep_bb, dragon_location) ~data:0;
+          0)
+        else
+          let sheep_moves = next_sheep_boards bounds sheep_bb dragon_location in
+          (* need to watch out for the every-sheep-is-on-the-last-row case *)
+          if List.is_empty sheep_moves then
+            List.fold ~init:0
+              ~f:(fun acc next_dragon_location ->
+                acc
+                + helper
+                    (eat_sheep sheep_bb hideouts next_dragon_location)
+                    next_dragon_location)
+              (dragon_moves_from bounds dragon_location)
+          else
+            List.fold ~init:0
+              ~f:(fun acc (next_sheep_bb, next_dragon_location) ->
+                acc
+                + helper
+                    (eat_sheep next_sheep_bb hideouts next_dragon_location)
+                    next_dragon_location)
+              (List.cartesian_product sheep_moves
+                 (dragon_moves_from bounds dragon_location))
+  in
+  helper initial_sheep dragon_start
