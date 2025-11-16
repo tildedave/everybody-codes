@@ -349,3 +349,32 @@ let%test_unit "quest2 part3 (given, second)" =
          "SWAP 2";
          "SWAP 5";
        ])
+
+(* quest 3 - should be a closed form for the snails *)
+
+(* (x,y) -> (x - 1 + 100) % diagonal + 1, y - 1 - 100 % diagonal + 1) *)
+(* so figure out which diagonal we're on *)
+(* diagonal we're on is (x, y) --> x + y - 1 *)
+
+let final_position (x, y) =
+  let diagonal = x + y - 1 in
+  (((x - 1 + 100) % diagonal) + 1, ((y - 1 - 100) % diagonal) + 1)
+
+let%test_unit "final_position (1)" =
+  [%test_eq: (int * int) list]
+    [ (1, 2); (2, 3); (1, 6); (6, 2) ]
+    (List.map ~f:final_position [ (1, 2); (2, 3); (3, 4); (4, 4) ])
+
+let quest3part1 l =
+  l
+  |> List.map ~f:(fun s ->
+         Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
+  |> List.map ~f:final_position
+  |> List.map ~f:(fun (x, y) -> x + (100 * y))
+  |> List.fold ~init:0 ~f:( + )
+
+let%test_unit "part 1 (given)" =
+  [%test_eq: int] 1310
+    (quest3part1 [ "x=1 y=2"; "x=2 y=3"; "x=3 y=4"; "x=4 y=4" ])
+
+(* part2 is CRT *)
