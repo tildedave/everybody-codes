@@ -37,3 +37,34 @@ let set_add_all s = List.fold ~init:s ~f:Set.add
 
 let string_to_int_list ?(on = ',') s =
   List.map ~f:Int.of_string @@ String.split ~on s
+
+(* Knuth Algo X, 4.5.2 *)
+let euclid_extended u v =
+  let rec loop (u1, u2, u3) (v1, v2, v3) =
+    if v3 = 0 then (u1, u2, u3)
+    else
+      let q = u3 / v3 in
+      let t1, t2, t3 = (u1 - (v1 * q), u2 - (v2 * q), u3 - (v3 * q)) in
+      loop (v1, v2, v3) (t1, t2, t3)
+  in
+  loop (1, 0, u) (0, 1, v)
+
+let%test_unit "euclid extended" =
+  [%test_eq: int * int * int] (337, -571, 34) (euclid_extended 40902 24140)
+
+let crt_inductive residues =
+  let rec loop (x, m) residues =
+    match residues with
+    | [] -> x
+    | (x', m') :: l ->
+        let u, v, d = euclid_extended m m' in
+        let x, m = ((u * m * x') + (v * m' * x), m * m') in
+        assert (d = 1);
+        loop (x % m, m) l
+  in
+  match residues with
+  | (x, m) :: rest_residues -> loop (x, m) rest_residues
+  | _ -> failwith "invalid argument"
+
+let%test_unit "crt_inductive" =
+  [%test_eq: int] 39 (crt_inductive [ (0, 3); (3, 4); (4, 5) ])
