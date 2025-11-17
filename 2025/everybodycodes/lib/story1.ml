@@ -378,3 +378,23 @@ let%test_unit "part 1 (given)" =
     (quest3part1 [ "x=1 y=2"; "x=2 y=3"; "x=3 y=4"; "x=4 y=4" ])
 
 (* part2 is CRT *)
+(* initial position + x = 0 mod diagonal (a prime) *)
+(* initial position = -y mod p *)
+
+let to_residue (x, y) =
+  let p = x + y - 1 in
+  (y - 1, p)
+
+let quest3part2 l =
+  l
+  |> List.map ~f:(fun s ->
+         Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
+  |> List.map ~f:to_residue |> crt_inductive
+
+let%test_unit "part2 (given 1)" =
+  [%test_eq: int] 14
+    (quest3part2 [ "x=12 y=2"; "x=8 y=4"; "x=7 y=1"; "x=1 y=5"; "x=1 y=3" ])
+
+let%test_unit "part2 (given 2)" =
+  [%test_eq: int] 13659
+    (quest3part2 [ "x=3 y=1"; "x=3 y=9"; "x=1 y=5"; "x=4 y=10"; "x=5 y=3" ])

@@ -12,3 +12,4 @@ val quest2 : ?part3:bool -> string list -> string
             int -> int -> seen:(int, 'a) Base.Set.t -> int list *)
 
 val quest3part1: string list -> int
+val quest3part2: string list -> int

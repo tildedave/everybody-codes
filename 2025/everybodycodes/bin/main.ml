@@ -46,4 +46,6 @@ print_endline
    | "story1-quest2", "2" -> Story1.quest2 lines
    | "story1-quest2", "3" -> Story1.quest2 ~part3:true lines
    | "story1-quest3", "1" -> Int.to_string @@ Story1.quest3part1 lines
+   | "story1-quest3", "2" -> Int.to_string @@ Story1.quest3part2 lines
+   | "story1-quest3", "3" -> Int.to_string @@ Story1.quest3part2 lines
    | _ -> failwith "invalid argument")
