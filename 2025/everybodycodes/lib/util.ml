@@ -55,21 +55,22 @@ let%test_unit "euclid extended" =
 (* Course in Computational Number Theory, 1.3.12 *)
 let crt_inductive residues =
   let rec loop (x, m) residues =
-    Stdio.printf "%d mod %d\n" x m;
     match residues with
     | [] -> x
     | (xi, mi) :: l ->
         let u, v, d = euclid_extended m mi in
-        Stdio.printf "%d * %d + %d * %d = %d (actually %d)\n" u m v mi d
-          ((u * m) + (v * mi));
         assert ((u * m) + (v * mi) = d);
-        let x, m = ((u * m * xi) + (v * mi * x), m * mi) in
         assert (d = 1);
-        loop (x % m, m) l
+        let x =
+          Bigint.( + )
+            ([ u; m; xi ] |> List.map ~f:Bigint.of_int
+            |> List.fold ~init:Bigint.one ~f:Bigint.( * ))
+            ([ v; mi; x ] |> List.map ~f:Bigint.of_int
+            |> List.fold ~init:Bigint.one ~f:Bigint.( * ))
+        in
+        let m = m * mi in
+        loop (Bigint.to_int_exn (Bigint.( % ) x (Bigint.of_int m)), m) l
   in
-  Stdio.printf "residues: %s\n"
-    (String.concat ~sep:";"
-    @@ List.map ~f:(fun (n, p) -> Printf.sprintf "(%d, %d)" n p) residues);
   match residues with
   | (x, m) :: rest_residues -> loop (x, m) rest_residues
   | _ -> failwith "invalid argument"
