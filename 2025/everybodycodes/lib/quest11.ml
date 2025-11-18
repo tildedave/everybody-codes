@@ -61,10 +61,18 @@ let part1 l = flock_checksum (run_to_round 10 l)
 let run_to_balanced l =
   let arr = to_arr l in
   let rec loop round_num round1 =
+    (* Stdio.printf "[%d] %s\n" round_num *)
+    (* (String.concat ~sep:"; " (List.map ~f:Int.to_string (Array.to_list arr))); *)
     let mutated_any = if round1 then phase1 arr else phase2 arr in
     if is_balanced arr then round_num
     else
-      loop (round_num + 1) (if round1 && not mutated_any then false else round1)
+      loop (round_num + 1)
+        (if round1 && not mutated_any then
+           (* Stdio.printf "[%d] changing rounds %s\n" round_num
+              (String.concat ~sep:"; "
+                 (List.map ~f:Int.to_string (Array.to_list arr))); *)
+           false
+         else round1)
   in
   loop 0 true
 
@@ -89,3 +97,35 @@ let%test_unit "run_to_balanced (2)" =
        ])
 
 let part2 = run_to_balanced
+
+(* part3 has a trick.  the numbers are increasing so we don't have to worry
+   about the part1 portion of the logic *)
+
+let part3 l =
+  let ints = List.map ~f:(Fn.compose Bigint.of_int Int.of_string) l in
+  let sum = List.fold ~f:Bigint.( + ) ~init:Bigint.zero ints in
+  let mean = Bigint.( / ) sum (Bigint.of_int (List.length l)) in
+  Bigint.to_int_exn
+  @@ List.fold
+       ~f:(fun acc n ->
+         if Bigint.( < ) n mean then Bigint.( + ) acc (Bigint.( - ) mean n)
+         else acc)
+       ~init:Bigint.zero ints
+
+let%test_unit "part 3" =
+  [%test_eq: int] 1579
+    (861
+    + part3
+        [
+          "325";
+          "325";
+          "325";
+          "325";
+          "326";
+          "326";
+          "326";
+          "607";
+          "607";
+          "608";
+          "608";
+        ])
