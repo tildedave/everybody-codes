@@ -102,15 +102,14 @@ let part2 = run_to_balanced
    about the part1 portion of the logic *)
 
 let part3 l =
-  let ints = List.map ~f:(Fn.compose Bigint.of_int Int.of_string) l in
-  let sum = List.fold ~f:Bigint.( + ) ~init:Bigint.zero ints in
-  let mean = Bigint.( / ) sum (Bigint.of_int (List.length l)) in
-  Bigint.to_int_exn
+  let open Bigint in
+  let ints = List.map ~f:(Fn.compose of_int Int.of_string) l in
+  let sum = List.fold ~f:( + ) ~init:zero ints in
+  let mean = sum / of_int (List.length l) in
+  to_int_exn
   @@ List.fold
-       ~f:(fun acc n ->
-         if Bigint.( < ) n mean then Bigint.( + ) acc (Bigint.( - ) mean n)
-         else acc)
-       ~init:Bigint.zero ints
+       ~f:(fun acc n -> if n < mean then acc + (mean - n) else acc)
+       ~init:zero ints
 
 let%test_unit "part 3" =
   [%test_eq: int] 1579
