@@ -149,11 +149,15 @@ let build num_slots token_to_slot_mapping =
   let num_tokens = Hashtbl.length token_to_slot_mapping in
   let tokens = Array.of_list @@ Hashtbl.keys token_to_slot_mapping in
   let open Lp in
+  let pairs =
+    List.cartesian_product
+      (Util.( -- ) 0 (num_tokens - 1))
+      (Util.( -- ) 0 (num_slots - 1))
+  in
   let x =
     Array.init (Array.length tokens) ~f:(fun n ->
         Array.init num_slots ~f:(fun k ->
-            Lp.Poly.var ~integer:true ~lb:0. ~ub:1.
-              (Printf.sprintf "x_{%d%d}" n k)))
+            Lp.Poly.var ~integer:true ~lb:0. ~ub:1. (Printf.sprintf "x%d%d" n k)))
   in
   let obj =
     List.fold ~init:(c 0.0) ~f:( ++ )
@@ -161,26 +165,23 @@ let build num_slots token_to_slot_mapping =
          ~f:(fun (n, k) ->
            x.(n).(k)
            *~ c
-                (* slots are 1-indexed *)
                 (float_of_int
-                   (Array.get
-                      (Hashtbl.find_exn token_to_slot_mapping tokens.(n))
-                      k)))
-         (List.cartesian_product
-            (Util.( -- ) 0 (num_tokens - 1))
-            (Util.( -- ) 0 (num_slots - 1))))
+                   (Hashtbl.find_exn token_to_slot_mapping tokens.(n)).(k)))
+         pairs)
   in
   let token_matching =
     List.init (Array.length tokens) ~f:(fun n ->
-        eq (c 1.0)
+        eq
           (List.fold ~f:( ++ ) ~init:(c 0.0)
-             (List.init num_slots ~f:(fun k -> x.(n).(k)))))
+             (List.init num_slots ~f:(fun k -> x.(n).(k))))
+          (c 1.0))
   in
   let slot_matching =
     List.init num_slots ~f:(fun k ->
-        eq (c 1.0)
+        lt
           (List.fold ~f:( ++ ) ~init:(c 0.0)
-             (List.init num_tokens ~f:(fun n -> x.(n).(k)))))
+             (List.init num_tokens ~f:(fun n -> x.(n).(k))))
+          (c 1.0))
   in
   (make (maximize obj) (token_matching @ slot_matching), x)
 
@@ -212,32 +213,35 @@ let quest1part3 l =
          Hashtbl.set token_to_slot_mapping ~key:token
            ~data:
              (Array.init (num_slots board) ~f:(fun s ->
+                  Stdio.printf "token %s with slot %d has coin value %d\n" token
+                    (s + 1)
+                    (tokens_won board token (s + 1));
                   tokens_won board token (s + 1))));
   solve (num_slots board) token_to_slot_mapping
 
-(* let _ =
-   quest1part3
-     [
-       "*.*.*.*.*.*.*.*.*";
-       ".*.*.*.*.*.*.*.*.";
-       "*.*.*...*.*...*..";
-       ".*.*.*.*.*...*.*.";
-       "*.*.....*...*.*.*";
-       ".*.*.*.*.*.*.*.*.";
-       "*...*...*.*.*.*.*";
-       ".*.*.*.*.*.*.*.*.";
-       "*.*.*...*.*.*.*.*";
-       ".*...*...*.*.*.*.";
-       "*.*.*.*.*.*.*.*.*";
-       ".*.*.*.*.*.*.*.*.";
-       "";
-       "RRRLRLRRRRRL";
-       "LLLLRLRRRRRR";
-       "RLLLLLRLRLRL";
-       "LRLLLRRRLRLR";
-       "LLRLLRLLLRRL";
-       "LRLRLLLRRRRL";
-     ] *)
+let _ =
+  quest1part3
+    [
+      "*.*.*.*.*.*.*.*.*";
+      ".*.*.*.*.*.*.*.*.";
+      "*.*.*...*.*...*..";
+      ".*.*.*.*.*...*.*.";
+      "*.*.....*...*.*.*";
+      ".*.*.*.*.*.*.*.*.";
+      "*...*...*.*.*.*.*";
+      ".*.*.*.*.*.*.*.*.";
+      "*.*.*...*.*.*.*.*";
+      ".*...*...*.*.*.*.";
+      "*.*.*.*.*.*.*.*.*";
+      ".*.*.*.*.*.*.*.*.";
+      "";
+      "RRRLRLRRRRRL";
+      "LLLLRLRRRRRR";
+      "RLLLLLRLRLRL";
+      "LRLLLRRRLRLR";
+      "LLRLLRLLLRRL";
+      "LRLRLLLRRRRL";
+    ]
 (*
 let x = Lp.var "x"
 let y = Lp.var "y"
