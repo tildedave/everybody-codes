@@ -77,3 +77,11 @@ let crt_inductive residues =
 
 let%test_unit "crt_inductive" =
   [%test_eq: int] 39 (crt_inductive [ (0, 3); (3, 4); (4, 5) ])
+
+module IntPair = struct
+  type t = int * int [@@deriving compare, sexp_of]
+
+  let hash = Hashtbl.hash
+end
+
+let to_grid l = Array.of_list l |> Array.map ~f:(fun s -> String.to_array s)

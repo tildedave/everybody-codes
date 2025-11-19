@@ -8,3 +8,13 @@ val (--): int -> int -> int list
 val set_add_all: ('a, 'b) Base.Set.t -> 'a list -> ('a, 'b) Base.Set.t
 val string_to_int_list: ?on:char -> string -> int list
 val crt_inductive: (int * int) list -> int
+
+module IntPair : sig
+  type t = int * int
+
+  val compare : t -> t -> int
+  val sexp_of_t : t -> Base.Sexp.t
+  val hash : 'a -> int
+end
+
+val to_grid: string list -> char array array
