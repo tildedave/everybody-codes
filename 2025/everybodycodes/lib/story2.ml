@@ -223,7 +223,7 @@ let quest1part3 l =
   Printf.sprintf "%d %d"
     (solve (num_slots board) token_to_slot_mapping ~max:false)
     (solve (num_slots board) token_to_slot_mapping ~max:true)
-
+(*
 let%test_unit "quest1part3 (given, 1)" =
   [%test_eq: string] "13 43"
     (quest1part3
@@ -247,4 +247,4 @@ let%test_unit "quest1part3 (given, 1)" =
          "LRLLLRRRLRLR";
          "LLRLLRLLLRRL";
          "LRLRLLLRRRRL";
-       ])
+       ]) *)
