@@ -248,3 +248,22 @@ let%test_unit "quest1part3 (given, 1)" =
          "LLRLLRLLLRRL";
          "LRLRLLLRRRRL";
        ]) *)
+
+let next_bolt ch =
+  match ch with
+  | 'R' -> 'G'
+  | 'G' -> 'B'
+  | 'B' -> 'R'
+  | _ -> failwith "invalid balloon"
+
+let quest2part1 s =
+  let rec loop i bolt num_bolts =
+    if i = String.length s then num_bolts
+    else if equal_char s.[i] bolt then loop (i + 1) bolt num_bolts
+    else if i + 1 = String.length s then num_bolts
+    else loop (i + 1) (next_bolt bolt) (num_bolts + 1)
+  in
+  loop 0 'R' 1
+
+let%test_unit "quest 2 part1 (given)" =
+  [%test_eq: int] 7 (quest2part1 "GRBGGGBBBRRRRRRRR")
