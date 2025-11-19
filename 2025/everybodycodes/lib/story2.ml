@@ -145,7 +145,7 @@ let%test_unit "quest1 quest1part2 (coins won)" =
 
 let num_slots (Board ((xmax, _), _)) = (xmax + 1) / 2
 
-let build num_slots token_to_slot_mapping =
+let build num_slots token_to_slot_mapping ~max =
   let num_tokens = Hashtbl.length token_to_slot_mapping in
   let tokens = Array.of_list @@ Hashtbl.keys token_to_slot_mapping in
   let open Lp in
@@ -159,15 +159,17 @@ let build num_slots token_to_slot_mapping =
         Array.init num_slots ~f:(fun k ->
             Lp.Poly.var ~integer:true ~lb:0. ~ub:1. (Printf.sprintf "x%d%d" n k)))
   in
-  let obj =
-    List.fold ~init:(c 0.0) ~f:( ++ )
-      (List.map
-         ~f:(fun (n, k) ->
-           x.(n).(k)
-           *~ c
-                (float_of_int
-                   (Hashtbl.find_exn token_to_slot_mapping tokens.(n)).(k)))
-         pairs)
+  let z = Lp.var "z" in
+  let z_constraint =
+    eq z
+      (List.fold ~init:(c 0.0) ~f:( ++ )
+         (List.map
+            ~f:(fun (n, k) ->
+              x.(n).(k)
+              *~ c
+                   (float_of_int
+                      (Hashtbl.find_exn token_to_slot_mapping tokens.(n)).(k)))
+            pairs))
   in
   let token_matching =
     List.init (Array.length tokens) ~f:(fun n ->
@@ -183,7 +185,10 @@ let build num_slots token_to_slot_mapping =
              (List.init num_tokens ~f:(fun n -> x.(n).(k))))
           (c 1.0))
   in
-  (make (maximize obj) (token_matching @ slot_matching), x)
+  ( make
+      (if max then maximize z else minimize z)
+      ((z_constraint :: token_matching) @ slot_matching),
+    z )
 
 (* copied from ocaml-lp, available in 0.5.0 *)
 
@@ -198,12 +203,13 @@ let compute_term pmap t =
 let compute_poly pmap p =
   Lp.Poly.map (compute_term pmap) p |> List.fold ~f:( +. ) ~init:0.
 
-let solve num_slots token_to_slot_mapping =
-  let problem, _ = build num_slots token_to_slot_mapping in
-  Stdio.printf "%s\n" (Lp.Problem.to_string problem);
+let solve num_slots token_to_slot_mapping ~max =
+  let problem, z = build num_slots token_to_slot_mapping ~max in
   match Lp_glpk.Milp.solve problem with
-  | Ok (_, _) -> Stdio.printf "solved!\n"
-  | Error msg -> Stdio.printf "Failed to solve: %s\n" msg
+  | Ok (_, pmap) -> Int.of_float (compute_poly pmap z)
+  | Error msg ->
+      Stdio.printf "Failed to solve: %s\n" msg;
+      assert false
 
 let quest1part3 l =
   let board, tokens = parse_lines l in
@@ -213,58 +219,32 @@ let quest1part3 l =
          Hashtbl.set token_to_slot_mapping ~key:token
            ~data:
              (Array.init (num_slots board) ~f:(fun s ->
-                  Stdio.printf "token %s with slot %d has coin value %d\n" token
-                    (s + 1)
-                    (tokens_won board token (s + 1));
                   tokens_won board token (s + 1))));
-  solve (num_slots board) token_to_slot_mapping
+  Printf.sprintf "%d %d"
+    (solve (num_slots board) token_to_slot_mapping ~max:false)
+    (solve (num_slots board) token_to_slot_mapping ~max:true)
 
-let _ =
-  quest1part3
-    [
-      "*.*.*.*.*.*.*.*.*";
-      ".*.*.*.*.*.*.*.*.";
-      "*.*.*...*.*...*..";
-      ".*.*.*.*.*...*.*.";
-      "*.*.....*...*.*.*";
-      ".*.*.*.*.*.*.*.*.";
-      "*...*...*.*.*.*.*";
-      ".*.*.*.*.*.*.*.*.";
-      "*.*.*...*.*.*.*.*";
-      ".*...*...*.*.*.*.";
-      "*.*.*.*.*.*.*.*.*";
-      ".*.*.*.*.*.*.*.*.";
-      "";
-      "RRRLRLRRRRRL";
-      "LLLLRLRRRRRR";
-      "RLLLLLRLRLRL";
-      "LRLLLRRRLRLR";
-      "LLRLLRLLLRRL";
-      "LRLRLLLRRRRL";
-    ]
-(*
-let x = Lp.var "x"
-let y = Lp.var "y"
-
-let problem =
-  let open Lp in
-  let obj = maximize (x ++ y) in
-  let c0 = x ++ (c 1.2 *~ y) <~ c 5.0 in
-  let c1 = (c 2.0 *~ x) ++ y <~ c 1.2 in
-  make obj [ c0; c1 ]
-
-let write () = Lp.write "my_problem.lp" problem
-
-let solve () =
-  (* For other interfaces, use Lp_glpk_js or Lp_gurobi instead *)
-  match Lp_glpk.solve problem with
-  | Ok (obj, xs) ->
-      Printf.printf "Objective: %.2f\n" obj;
-      Printf.printf "x: %.2f y: %.2f\n" (Lp.PMap.find x xs) (Lp.PMap.find y xs)
-  | Error msg -> print_endline msg
-
-let () =
-  if Lp.validate problem then (
-    write ();
-    solve ())
-  else print_endline "Oops, my problem is broken." *)
+let%test_unit "quest1part3 (given, 1)" =
+  [%test_eq: string] "13 43"
+    (quest1part3
+       [
+         "*.*.*.*.*.*.*.*.*";
+         ".*.*.*.*.*.*.*.*.";
+         "*.*.*...*.*...*..";
+         ".*.*.*.*.*...*.*.";
+         "*.*.....*...*.*.*";
+         ".*.*.*.*.*.*.*.*.";
+         "*...*...*.*.*.*.*";
+         ".*.*.*.*.*.*.*.*.";
+         "*.*.*...*.*.*.*.*";
+         ".*...*...*.*.*.*.";
+         "*.*.*.*.*.*.*.*.*";
+         ".*.*.*.*.*.*.*.*.";
+         "";
+         "RRRLRLRRRRRL";
+         "LLLLRLRRRRRR";
+         "RLLLLLRLRLRL";
+         "LRLLLRRRLRLR";
+         "LLRLLRLLLRRL";
+         "LRLRLLLRRRRL";
+       ])
