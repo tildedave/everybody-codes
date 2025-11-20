@@ -267,3 +267,7 @@ let quest2part1 s =
 
 let%test_unit "quest 2 part1 (given)" =
   [%test_eq: int] 7 (quest2part1 "GRBGGGBBBRRRRRRRR")
+
+(* pretty sure part 2 was a advent of code problem *)
+(* OK it's a modified variant of the Josephus problem *)
+(* I guess we can solve this with a linked list that we modify *)

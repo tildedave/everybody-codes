@@ -45,6 +45,9 @@ print_endline
    | "quest12", "1" -> Int.to_string @@ Quest12.part1 lines
    | "quest12", "2" -> Int.to_string @@ Quest12.part2 lines
    | "quest12", "3" -> Int.to_string @@ Quest12.part3 lines
+   | "quest13", "1" -> Int.to_string @@ Quest13.part1 lines
+   | "quest13", "2" -> Int.to_string @@ Quest13.part2 lines
+   | "quest13", "3" -> Int.to_string @@ Quest13.part3 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
