@@ -39,17 +39,6 @@ let fold m ~init ~f ~neighbors start =
         (neighbors next))
   done
 
-module IntPair = struct
-  type t = int * int [@@deriving compare, sexp_of]
-
-  let hash = Hashtbl.hash
-end
-
-module IntPair_Comparator = struct
-  include IntPair
-  include Base.Comparator.Make (IntPair)
-end
-
 module SearchState = struct
   type t = int * (int * int) [@@deriving compare, sexp_of]
 

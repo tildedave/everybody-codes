@@ -1,21 +1,6 @@
 open Base
 open Util
 
-let bounds grid = (Array.length grid.(0), Array.length grid)
-let grid_at grid (x, y) = grid.(y).(x)
-
-let fold_coords grid ~f ~init =
-  Array.foldi ~init
-    ~f:(fun y acc arr ->
-      Array.foldi ~init:acc ~f:(fun x acc ch -> f (x, y) acc ch) arr)
-    grid
-
-let neighbors grid (x, y) =
-  let xmax, ymax = bounds grid in
-  List.filter
-    ~f:(fun (x, y) -> x >= 0 && x < xmax && y >= 0 && y < ymax)
-    [ (x + 1, y); (x - 1, y); (x, y + 1); (x, y - 1) ]
-
 let explode_barrels grid exploded start_l =
   let queue = Queue.create () in
   List.iter start_l ~f:(fun start ->
@@ -34,7 +19,7 @@ let explode_barrels grid exploded start_l =
             if (not (Hash_set.mem exploded next)) && next_val <= curr_val then (
               Hash_set.add exploded next;
               Queue.enqueue queue next))
-          (neighbors grid (x, y));
+          (grid_cardinal_neighbors grid (x, y));
         loop (num_destroyed + 1)
   in
   loop 0
@@ -49,8 +34,7 @@ let%test_unit "part 1 (given)" =
 
 let part2 l =
   let grid = to_grid l in
-  let xmax, ymax = bounds grid in
-  let grid = to_grid l in
+  let xmax, ymax = grid.bounds in
   let exploded = Hash_set.create (module IntPair) in
   explode_barrels grid exploded [ (0, 0); (xmax - 1, ymax - 1) ]
 
@@ -73,7 +57,7 @@ let%test_unit "part 2 (given)" =
 let part3 l =
   let grid = to_grid l in
   let find_winner last_best_exploded =
-    fold_coords grid
+    grid_fold grid
       ~init:((0, 0), 0, Hash_set.create (module IntPair))
       ~f:(fun (x, y) (winner, winner_count, winner_exploded) _ ->
         let my_exploded = Hash_set.copy last_best_exploded in

@@ -84,4 +84,40 @@ module IntPair = struct
   let hash = Hashtbl.hash
 end
 
-let to_grid l = Array.of_list l |> Array.map ~f:(fun s -> String.to_array s)
+module IntPair_Comparator = struct
+  include IntPair
+  include Base.Comparator.Make (IntPair)
+end
+
+type grid = { cells : char array array; bounds : int * int }
+
+let to_grid l =
+  let cells = Array.of_list l |> Array.map ~f:(fun s -> String.to_array s) in
+  { cells; bounds = (Array.length cells.(0), Array.length cells) }
+
+let grid_at grid (x, y) = grid.cells.(y).(x)
+
+let grid_fold grid ~f ~init =
+  Array.foldi ~init
+    ~f:(fun y acc arr ->
+      Array.foldi ~init:acc ~f:(fun x acc ch -> f (x, y) acc ch) arr)
+    grid.cells
+
+let grid_neighbors deltas g (x, y) =
+  let xmax, ymax = g.bounds in
+  List.filter
+    ~f:(fun (x, y) -> x >= 0 && x < xmax && y >= 0 && y < ymax)
+    (List.map ~f:(fun (dx, dy) -> (dx + x, dy + y)) deltas)
+
+let grid_cardinal_neighbors =
+  grid_neighbors [ (0, 1); (1, 0); (-1, 0); (0, -1) ]
+
+let grid_diagonal_neighbors =
+  grid_neighbors [ (1, 1); (1, -1); (-1, 1); (-1, -1) ]
+
+let id x = x
+
+let grid_all_coords grid =
+  List.cartesian_product
+    (List.init ~f:id (fst grid.bounds))
+    (List.init ~f:id (snd grid.bounds))
