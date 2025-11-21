@@ -267,7 +267,67 @@ let quest2part1 s =
 
 let%test_unit "quest 2 part1 (given)" =
   [%test_eq: int] 7 (quest2part1 "GRBGGGBBBRRRRRRRR")
-
 (* pretty sure part 2 was a advent of code problem *)
 (* OK it's a modified variant of the Josephus problem *)
 (* I guess we can solve this with a linked list that we modify *)
+
+let find_middle (list, length) =
+  1 -- (length / 2)
+  |> List.fold
+       ~init:(Option.value_exn @@ Doubly_linked.first_elt list)
+       ~f:(fun acc _ -> Option.value_exn @@ Doubly_linked.next list acc)
+
+let create_list s num_repeats =
+  let list, length = (Doubly_linked.create (), num_repeats * String.length s) in
+  for _ = 1 to num_repeats do
+    for j = 0 to String.length s - 1 do
+      let _ = Doubly_linked.insert_last list s.[j] in
+      ()
+    done
+  done;
+  let middle = find_middle (list, length) in
+  (list, middle, length)
+
+let%test_unit "create_list" =
+  [%test_eq: string] "GGBRGGBRGGBRGGBRGGBR"
+    (Doubly_linked.fold ~init:""
+       ~f:(fun acc ch -> String.append acc (Char.to_string ch))
+       (match create_list "GGBR" 5 with s, _, _ -> s))
+
+let%test_unit "find_middle" =
+  [%test_eq: char] 'B'
+    (Doubly_linked.Elt.value (match create_list "GGBR" 5 with _, m, _ -> m))
+
+let shoot_fluffbolt ch (list, middle_elt, length) =
+  (* Stdio.printf "[%c] (%c, %c, %d)\n" ch
+     (Doubly_linked.first_exn list)
+     (Doubly_linked.Elt.value middle_elt)
+     length; *)
+  let next_middle_elt =
+    if length % 2 = 0 then Doubly_linked.next list middle_elt
+    else Some middle_elt
+  in
+  let first_elt = Option.value_exn @@ Doubly_linked.first_elt list in
+  if length % 2 = 0 && equal_char (Doubly_linked.Elt.value first_elt) ch then (
+    ignore (Doubly_linked.remove_first list);
+    ignore (Doubly_linked.remove list middle_elt);
+    if length - 2 = 0 then (list, first_elt, length - 2)
+    else (list, Option.value_exn next_middle_elt, length - 2))
+  else (
+    ignore (Doubly_linked.remove_first list);
+    if length - 1 = 0 then (list, first_elt, length - 1)
+    else (list, Option.value_exn next_middle_elt, length - 1))
+
+let shoot_in_circle s num_repeats =
+  let rec loop state bolt num_bolts =
+    let next_state = shoot_fluffbolt bolt state in
+    match next_state with
+    | _, _, 0 -> num_bolts + 1
+    | _ -> loop next_state (next_bolt bolt) (num_bolts + 1)
+  in
+  loop (create_list s num_repeats) 'R' 0
+
+let%test_unit "shoot_in_circle" = [%test_eq: int] 14 (shoot_in_circle "GGBR" 5)
+
+let%test_unit "shoot_in_circle (longer; 1)" =
+  [%test_eq: int] 304 (shoot_in_circle "BBRGGRRGBBRGGBRGBBRRBRRRBGGRRRBGBGG" 10)

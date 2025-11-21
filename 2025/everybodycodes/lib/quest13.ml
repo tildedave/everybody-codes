@@ -80,11 +80,6 @@ let%test_unit "traverse" =
     (let wheel =
        construct_wheel [ "10-15"; "12-13"; "20-21"; "19-23"; "30-37" ]
      in
-     Stdio.printf "%s\n"
-       (Array.fold ~init:"" ~f:String.append
-          (Array.map
-             ~f:(fun (lo, hi) -> Printf.sprintf "(%d, %d); " lo hi)
-             wheel));
      List.init 24 ~f:(fun n -> traverse wheel n))
 
 let%test_unit "part2 (given)" =
