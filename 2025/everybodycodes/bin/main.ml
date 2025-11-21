@@ -62,4 +62,8 @@ print_endline
    | "story2-quest1", "3" -> Story2.quest1part3 lines
    | "story2-quest2", "1" ->
        Int.to_string @@ Story2.quest2part1 @@ List.hd lines
+   | "story2-quest2", "2" ->
+       Int.to_string @@ Story2.quest2part2 @@ List.hd lines
+   | "story2-quest2", "3" ->
+       Int.to_string @@ Story2.quest2part3 @@ List.hd lines
    | _ -> failwith "invalid argument")
