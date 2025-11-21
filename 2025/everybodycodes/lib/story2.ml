@@ -3,6 +3,7 @@
 open Base
 open Core
 open Util
+open Continue_or_stop
 
 type board = Board of (int * int) * string
 
@@ -342,3 +343,135 @@ let%test_unit "shoot_in_circle (longer; 3)" =
 
 let quest2part2 = shoot_in_circle 100
 let quest2part3 = shoot_in_circle 100000
+
+(* quest 3 - well, seems likely we are going to be solving some matrices before the end of this *)
+
+type die = {
+  id : int;
+  faces : int array;
+  active_face : int;
+  pulse : int;
+  roll_number : int;
+  seed : int;
+}
+
+let roll_die { id; faces; pulse; active_face; roll_number; seed } =
+  let spin = roll_number * pulse in
+  let active_face = (active_face + spin) % Array.length faces in
+  let result = faces.(active_face) in
+  ( result,
+    {
+      id;
+      faces;
+      pulse = ((pulse + spin) % seed) + 1 + roll_number + seed;
+      active_face;
+      roll_number = roll_number + 1;
+      seed;
+    } )
+
+let die_re = Re.Perl.re {|(\d+): faces=\[([^]]*)\] seed=(\d+)|} |> Re.compile
+
+let parse_die s =
+  match Re.exec_opt die_re s with
+  | None -> failwith "could not parse"
+  | Some groups ->
+      let id, faces, seed =
+        ( Int.of_string @@ Re.Group.get groups 1,
+          Array.map ~f:Int.of_string
+            (Array.of_list (String.split ~on:',' @@ Re.Group.get groups 2)),
+          Int.of_string @@ Re.Group.get groups 3 )
+      in
+      { id; faces; active_face = 0; pulse = seed; roll_number = 1; seed }
+
+let roll die = Sequence.unfold ~init:die ~f:(fun die -> Some (roll_die die))
+
+let%test_unit "roll_die (given)" =
+  [%test_eq: int list]
+    [ -1; 9; -1; -1; 5; 4; 4; 2; 5; 2 ]
+    (Sequence.to_list
+       (Sequence.take (roll (parse_die "1: faces=[1,2,4,-1,5,7,9] seed=3")) 10))
+
+let roll_many_total die_list =
+  Sequence.unfold ~init:die_list ~f:(fun die_list ->
+      let rolls, next_die = die_list |> List.map ~f:roll_die |> List.unzip in
+      Some (List.fold ~f:( + ) ~init:0 rolls, next_die))
+
+let quest3part1 l =
+  Sequence.fold_until ~init:(0, 0)
+    ~f:(fun (num_rolls, total) round_winnings ->
+      if total >= 10000 then Stop num_rolls
+      else Continue (num_rolls + 1, total + round_winnings))
+    (roll_many_total (List.map ~f:parse_die l))
+    ~finish:(fun _ -> 0)
+
+let%test_unit "part1 (given)" =
+  [%test_eq: int] 844
+    (quest3part1
+       [
+         "1: faces=[1,2,3,4,5,6] seed=7";
+         "2: faces=[-1,1,-1,1,-1] seed=13";
+         "3: faces=[9,8,7,8,9] seed=17";
+       ])
+
+let roll_many die_list =
+  Sequence.unfold ~init:die_list ~f:(fun die_list ->
+      let rolls, next_die = die_list |> List.map ~f:roll_die |> List.unzip in
+      Some (rolls, next_die))
+
+let quest3part2 l =
+  let die, board =
+    ( l
+      |> List.take_while ~f:(fun s -> not (String.is_empty s))
+      |> List.map ~f:parse_die,
+      l |> List.last_exn |> String.to_list
+      |> List.map ~f:(fun ch -> Int.of_string @@ Char.to_string ch) )
+  in
+  let board_length = List.length board in
+  let num_players = List.length die in
+  let finish_rounds =
+    Sequence.fold_until
+      ~init:
+        ( List.init num_players ~f:(fun _ -> 0),
+          0,
+          List.init num_players ~f:(fun _ -> None) )
+      ~f:(fun (positions, round_num, finish_round) die_results ->
+        let next_positions =
+          List.zip_exn die_results positions
+          |> List.map ~f:(fun (result, pos) ->
+                 match List.nth board pos with
+                 | None -> pos
+                 | Some square -> if square = result then pos + 1 else pos)
+        in
+        let next_finished =
+          List.zip_exn next_positions finish_round
+          |> List.map ~f:(fun (pos, finished) ->
+                 match finished with
+                 | None -> if pos = board_length then Some round_num else None
+                 | Some _ -> finished)
+        in
+        if List.is_empty (List.filter next_finished ~f:Option.is_none) then
+          Stop next_finished
+        else Continue (next_positions, round_num + 1, next_finished))
+      ~finish:(fun _ -> []) (* will never finish *)
+      (roll_many die)
+  in
+  finish_rounds
+  |> List.mapi ~f:(fun n k ->
+         match k with None -> failwith "impossible" | Some a -> (n + 1, a))
+  |> List.sort ~compare:(fun (_, b1) (_, b2) -> compare b1 b2)
+  |> List.map ~f:(fun c -> Int.to_string @@ fst c)
+  |> String.concat ~sep:","
+
+let%test_unit "part2 (given)" =
+  [%test_eq: string] "1,3,4,2"
+    (quest3part2
+       [
+         "1: faces=[1,2,3,4,5,6,7,8,9] seed=13";
+         "2: faces=[1,2,3,4,5,6,7,8,9] seed=29";
+         "3: faces=[1,2,3,4,5,6,7,8,9] seed=37";
+         "4: faces=[1,2,3,4,5,6,7,8,9] seed=43";
+         "";
+         "51257284";
+       ])
+
+let quest3part3 _ = 0

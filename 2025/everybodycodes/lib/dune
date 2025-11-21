@@ -1,6 +1,6 @@
 (library
  (name everybodycodes)
- (libraries base core stdio domainslib bignum lp lp-glpk)
+ (libraries base core stdio domainslib bignum lp lp-glpk re)
  (inline_tests)
  (preprocess
   (pps ppx_inline_test ppx_assert ppx_sexp_conv ppx_deriving.show ppx_deriving.eq ppx_jane)))
