@@ -418,6 +418,8 @@ let roll_many die_list =
       let rolls, next_die = die_list |> List.map ~f:roll_die |> List.unzip in
       Some (rolls, next_die))
 
+type player_position = Active of int | Completed of int
+
 let quest3part2 l =
   let die, board =
     ( l
@@ -430,34 +432,33 @@ let quest3part2 l =
   let num_players = List.length die in
   let finish_rounds =
     Sequence.fold_until
-      ~init:
-        ( List.init num_players ~f:(fun _ -> 0),
-          0,
-          List.init num_players ~f:(fun _ -> None) )
-      ~f:(fun (positions, round_num, finish_round) die_results ->
+      ~init:(0, List.init num_players ~f:(fun _ -> Active 0))
+      ~f:(fun (round_num, player_state) die_results ->
         let next_positions =
-          List.zip_exn die_results positions
+          List.zip_exn die_results player_state
           |> List.map ~f:(fun (result, pos) ->
-                 match List.nth board pos with
-                 | None -> pos
-                 | Some square -> if square = result then pos + 1 else pos)
+                 match pos with
+                 | Active p ->
+                     if result = List.nth_exn board p then
+                       if p + 1 = board_length then Completed round_num
+                       else Active (p + 1)
+                     else pos
+                 | Completed _ -> pos)
         in
-        let next_finished =
-          List.zip_exn next_positions finish_round
-          |> List.map ~f:(fun (pos, finished) ->
-                 match finished with
-                 | None -> if pos = board_length then Some round_num else None
-                 | Some _ -> finished)
-        in
-        if List.is_empty (List.filter next_finished ~f:Option.is_none) then
-          Stop next_finished
-        else Continue (next_positions, round_num + 1, next_finished))
+        if
+          List.is_empty
+            (List.filter next_positions ~f:(fun q ->
+                 match q with Active _ -> true | _ -> false))
+        then Stop next_positions
+        else Continue (round_num + 1, next_positions))
       ~finish:(fun _ -> []) (* will never finish *)
       (roll_many die)
   in
   finish_rounds
   |> List.mapi ~f:(fun n k ->
-         match k with None -> failwith "impossible" | Some a -> (n + 1, a))
+         match k with
+         | Active _ -> failwith "impossible"
+         | Completed a -> (n + 1, a))
   |> List.sort ~compare:(fun (_, b1) (_, b2) -> compare b1 b2)
   |> List.map ~f:(fun c -> Int.to_string @@ fst c)
   |> String.concat ~sep:","
