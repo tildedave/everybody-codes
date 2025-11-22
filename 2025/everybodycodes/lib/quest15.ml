@@ -137,31 +137,56 @@ I am not really sure that I can get this working without getting bogged down
 in a bunch of edge cases.  but it will be OK.
 *)
 
-let rec build_walls (x, y, facing, acc) directions =
+let rec build_lines (x, y, facing, acc) directions =
   match directions with
-  | [] -> ((x, y), Set.remove acc (x, y))
+  | [] -> ((x, y), acc)
   | dir :: dl -> (
       let dx, dy = delta facing dir in
       let walk n =
         let nx, ny = (x + (n * dx), y + (n * dy)) in
-        build_walls
-          ( nx,
-            ny,
-            next_facing facing dir,
-            List.fold ~init:acc ~f:Set.add [ (x, y); (nx, ny) ] )
+        build_lines
+          (nx, ny, next_facing facing dir, ((x, y), (nx, ny)) :: acc)
           dl
       in
       match dir with Left n -> walk @@ n | Right n -> walk @@ n)
+
+let tuple_range t1 t2 =
+  let dx, dy = (compare (fst t2) (fst t1), compare (snd t2) (snd t1)) in
+  let curr = ref t1 in
+  let result = ref [ t1 ] in
+  while not (equal_tuple !curr t2) do
+    let cx, cy = !curr in
+    curr := (cx + dx, cy + dy);
+    result := !curr :: !result
+  done;
+  List.rev !result
+
+let%test_unit "tuple_range (1)" =
+  [%test_eq: (int * int) list]
+    [ (1, 0); (2, 0); (3, 0) ]
+    (tuple_range (1, 0) (3, 0))
+
+let build_compressed_walls lines (x_compressor, y_compressor) =
+  let _compress_x, _compress_y =
+    (Map.find_exn x_compressor, Map.find_exn y_compressor)
+  in
+  let tuple_compress (x, y) = (_compress_x x, _compress_y y) in
+  List.fold
+    ~init:(Set.empty (module IntPair_Comparator))
+    ~f:(fun acc (start, _end) ->
+      let start_c, end_c = (tuple_compress start, tuple_compress _end) in
+      List.fold ~init:acc ~f:Set.add (tuple_range start_c end_c))
+    lines
 
 (* idea is that you sort the x-coords and the y-coords and
    then map x ---> idx in the list, search on x/y indices *)
 
 let compression f l =
   l
-  |> Set.fold ~init:[] ~f:(fun acc c ->
-         let x = f c in
+  |> List.fold ~init:[] ~f:(fun acc (sc, ec) ->
+         let x, y = (f sc, f ec) in
          (* needs elements right before s and right before e to simulate wall hugging *)
-         x :: (x + 1) :: (x - 1) :: acc)
+         x :: (x + 1) :: (x - 1) :: y :: (y + 1) :: (y - 1) :: acc)
   |> List.sort ~compare
   |> List.remove_consecutive_duplicates ~equal
   |> List.foldi
@@ -187,21 +212,12 @@ let flood_fill_compressed start goal walls
     (Map.find_exn x_biggener, Map.find_exn y_biggener)
   in
   let tuple_expand (x, y) = (_expand_x x, _expand_y y) in
-  let bottom_left, bottom_right = bounds walls in
-  let tuple_compress (x, y) = (_compress_x x, _compress_y y) in
-  let (xmin, ymin), (xmax, ymax) =
-    (tuple_compress bottom_left, tuple_compress bottom_right)
-  in
+  let (xmin, ymin), (xmax, ymax) = bounds walls in
   Queue.enqueue queue start;
   Hashtbl.add_exn distance ~key:start ~data:0;
   while (not (Queue.is_empty queue)) && not !loop_done do
     let next = Queue.dequeue_exn queue in
-    Stdio.printf "pop loop %s (original %s)\n" (show_tuple next)
-      (show_tuple @@ tuple_expand next);
-    Stdio.printf "distance %d\n" (Hashtbl.find_exn distance next);
-    if equal_tuple next goal then (
-      Stdio.printf "loop done\n";
-      loop_done := true)
+    if equal_tuple next goal then loop_done := true
     else
       List.iter
         ~f:(fun neighbor ->
@@ -211,11 +227,6 @@ let flood_fill_compressed start goal walls
                 ( Int.abs (_expand_x x2 - _expand_x x1),
                   Int.abs (_expand_y y2 - _expand_y y1) )
           in
-          Stdio.printf
-            ">>> neighbor is %s! (original %s) x-distance %d y-distance %d <<<\n"
-            (show_tuple neighbor)
-            (show_tuple @@ tuple_expand neighbor)
-            x_distance y_distance;
           if not (Hash_set.mem explored neighbor) then (
             Hash_set.add explored neighbor;
             Hashtbl.set distance ~key:neighbor
@@ -223,7 +234,7 @@ let flood_fill_compressed start goal walls
             Queue.enqueue queue neighbor))
         (cardinal_deltas
         |> List.map ~f:(fun (dx, dy) -> (fst next + dx, snd next + dy))
-        |> List.filter ~f:(fun sq -> not (Set.mem walls (tuple_expand sq)))
+        |> List.filter ~f:(fun sq -> not (Set.mem walls sq))
         |> List.filter ~f:(fun (x, y) ->
                x >= xmin && x <= xmax && y >= ymin && y <= ymax))
   done;
@@ -249,18 +260,18 @@ let flood_fill_compressed start goal walls
 let _ = flood_fill_compressed
 
 let part3 s =
-  let sq, walls =
-    parse_instructions s
-    |> build_walls (0, 0, North, Set.empty (module IntPair_Comparator))
-  in
+  let sq, lines = parse_instructions s |> build_lines (0, 0, North, []) in
   let _invert = map_invert_exn (module Int) in
   let x_compressor, y_compressor =
-    (compression fst walls, compression snd walls)
+    (compression fst lines, compression snd lines)
   in
   let x_biggener, y_biggener = (_invert x_compressor, _invert y_compressor) in
   let start = (Map.find_exn x_compressor 0, Map.find_exn y_compressor 0) in
   let goal =
     (Map.find_exn x_compressor (fst sq), Map.find_exn y_compressor (snd sq))
+  in
+  let walls =
+    Set.remove (build_compressed_walls lines (x_compressor, y_compressor)) goal
   in
   Stdio.printf "(0,0) = %s; %s = %s\n" (show_tuple start) (show_tuple sq)
     (show_tuple goal);
