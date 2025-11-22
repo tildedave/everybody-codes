@@ -211,7 +211,6 @@ let flood_fill_compressed start goal walls
   let _expand_x, _expand_y =
     (Map.find_exn x_biggener, Map.find_exn y_biggener)
   in
-  let tuple_expand (x, y) = (_expand_x x, _expand_y y) in
   let (xmin, ymin), (xmax, ymax) = bounds walls in
   Queue.enqueue queue start;
   Hashtbl.add_exn distance ~key:start ~data:0;
@@ -238,23 +237,20 @@ let flood_fill_compressed start goal walls
         |> List.filter ~f:(fun (x, y) ->
                x >= xmin && x <= xmax && y >= ymin && y <= ymax))
   done;
-  Stdio.printf "bounds %s %s\n"
-    (show_tuple (xmin, xmax))
-    (show_tuple (ymin, ymax));
-  for y = ymin to ymax do
-    for x = xmin to xmax do
-      Stdio.printf "%c"
-        (if equal_tuple (x, y) goal then 'E'
-         else if equal_tuple start (x, y) then 'S'
-         else if Set.mem walls (tuple_expand (x, y)) then '#'
-         else if Hashtbl.mem distance (x, y) then '*'
-         else '.')
-    done;
-    Stdio.printf "\n"
-  done;
-  (* well so the distances are all wrong *)
-  Stdio.printf "done with loop, of course we have found the goal??? (goal %s)\n"
-    (show_tuple goal);
+  (* Stdio.printf "bounds %s %s\n"
+       (show_tuple (xmin, xmax))
+       (show_tuple (ymin, ymax));
+     for y = ymin to ymax do
+       for x = xmin to xmax do
+         Stdio.printf "%c"
+           (if equal_tuple (x, y) goal then 'E'
+            else if equal_tuple start (x, y) then 'S'
+            else if Set.mem walls (tuple_expand (x, y)) then '#'
+            else if Hashtbl.mem distance (x, y) then '*'
+            else '.')
+       done;
+       Stdio.printf "\n"
+     done; *)
   Hashtbl.find_exn distance goal
 
 let _ = flood_fill_compressed
@@ -273,8 +269,6 @@ let part3 s =
   let walls =
     Set.remove (build_compressed_walls lines (x_compressor, y_compressor)) goal
   in
-  Stdio.printf "(0,0) = %s; %s = %s\n" (show_tuple start) (show_tuple sq)
-    (show_tuple goal);
   flood_fill_compressed start goal walls
     (x_compressor, y_compressor, x_biggener, y_biggener)
 
