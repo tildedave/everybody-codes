@@ -52,8 +52,8 @@ print_endline
    | "quest14", "2" -> Int.to_string @@ Quest14.part2 lines
    | "quest14", "3" -> Int.to_string @@ Quest14.part3 lines
    | "quest15", "1" -> Int.to_string @@ Quest15.part1 @@ List.hd lines
-   | "quest15", "2" -> Int.to_string @@ Quest15.part2 lines
-   | "quest15", "3" -> Int.to_string @@ Quest15.part3 lines
+   | "quest15", "2" -> Int.to_string @@ Quest15.part1 @@ List.hd lines
+   | "quest15", "3" -> Int.to_string @@ Quest15.part3 @@ List.hd lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
