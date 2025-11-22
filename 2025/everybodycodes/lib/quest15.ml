@@ -7,7 +7,9 @@ type direction = Left of int | Right of int
 let parse_instructions s =
   s |> String.split ~on:','
   |> List.map ~f:(fun s ->
-         let n = num_of_char s.[1] in
+         let n =
+           Int.of_string @@ String.sub s ~pos:1 ~len:(String.length s - 1)
+         in
          match s.[0] with
          | 'L' -> Left n
          | 'R' -> Right n
@@ -37,7 +39,7 @@ let next_facing facing dir =
 
 let rec follow_directions (x, y, facing, walls) directions =
   match directions with
-  | [] -> ((x, y), walls)
+  | [] -> ((x, y), Set.remove walls (x, y))
   | dir :: dl -> (
       let dx, dy = delta facing dir in
       let walk n =
@@ -59,31 +61,64 @@ let cardinal_deltas = [ (0, 1); (1, 0); (-1, 0); (0, -1) ]
 
 type tuple = int * int [@@deriving eq, show]
 
+let _ = show_tuple
+
+let bounds walls =
+  Set.fold
+    ~init:((0, 0), (0, 0))
+    ~f:(fun ((xmin, ymin), (xmax, ymax)) (x, y) ->
+      ((min xmin x, min ymin y), (max xmax x, max ymax y)))
+    walls
+
 let flood_fill (sq, walls) =
+  let fudge = 1 in
   let queue, explored, distance, loop_done =
     ( Queue.create (),
       Hash_set.create (module IntPair),
       Hashtbl.create (module IntPair),
       ref false )
   in
-  Queue.enqueue queue sq;
-  Hashtbl.add_exn distance ~key:sq ~data:0;
+  let (xmin, ymin), (xmax, ymax) = bounds walls in
+  Queue.enqueue queue (0, 0);
+  Hashtbl.add_exn distance ~key:(0, 0) ~data:0;
   while (not (Queue.is_empty queue)) && not !loop_done do
     let next = Queue.dequeue_exn queue in
-    if equal_tuple next (0, 0) then loop_done := true
+    Stdio.printf "%s - distance %d\n" (show_tuple next)
+      (Hashtbl.find_exn distance next);
+    if equal_tuple next sq then loop_done := true
     else
       List.iter
         ~f:(fun neighbor ->
           if not (Hash_set.mem explored neighbor) then (
-            Hash_set.add explored next;
+            Hash_set.add explored neighbor;
             Hashtbl.set distance ~key:neighbor
               ~data:(1 + Hashtbl.find_exn distance next);
             Queue.enqueue queue neighbor))
         (cardinal_deltas
         |> List.map ~f:(fun (dx, dy) -> (fst next + dx, snd next + dy))
-        |> List.filter ~f:(fun sq -> not (Set.mem walls sq)))
+        |> List.filter ~f:(fun sq -> not (Set.mem walls sq))
+        |> List.filter ~f:(fun (x, y) ->
+               x >= xmin - fudge
+               && x <= xmax + fudge
+               && y >= ymin - fudge
+               && y <= ymax + fudge))
   done;
-  Hashtbl.find_exn distance (0, 0)
+  (*
+  Stdio.printf "bounds %s %s\n"
+    (show_tuple (xmin, xmax))
+    (show_tuple (ymin, ymax));
+  for y = ymin - fudge to ymax + fudge do
+    for x = xmin - fudge to xmax + fudge do
+      Stdio.printf "%c"
+        (if equal_tuple (x, y) sq then 'E'
+         else if equal_tuple (0, 0) (x, y) then 'S'
+         else if Set.mem walls (x, y) then '#'
+         else if Hashtbl.mem distance (x, y) then '*'
+         else '.')
+    done;
+    Stdio.printf "\n"
+  done;*)
+  Hashtbl.find_exn distance sq
 
 let part1 s =
   parse_instructions s
