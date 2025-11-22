@@ -475,4 +475,53 @@ let%test_unit "part2 (given)" =
          "51257284";
        ])
 
-let quest3part3 _ = 0
+(* part 3 does NOT have us solving matrices, hurrah *)
+(* part 3 issue: paths can intersect each other.  but that does not matter.
+   each square only counts for one coin.
+   so really we just want to generate all-paths from each spot.  that is
+   not so bad.
+   successful roll creates 4 branches *)
+
+let num_of_char ch = int_of_char ch - 48
+
+let rec paths_from grid sq die prefix_seq =
+  let result, next_die = roll_die die in
+  if num_of_char (grid_at grid sq) <> result then prefix_seq
+  else
+    (* we survive and can go in any direction *)
+    Sequence.concat @@ Sequence.of_list
+    @@ List.map
+         ~f:(fun neighbor ->
+           paths_from grid neighbor next_die
+             (Sequence.append prefix_seq (Sequence.singleton sq)))
+         (sq :: grid_cardinal_neighbors grid sq)
+
+let quest3part3 l =
+  let split_n = l |> List.findi_exn ~f:(fun _ s -> equal_string s "") |> fst in
+  let _dice, _board = List.split_n l split_n in
+  let dice = List.map ~f:parse_die _dice in
+  let grid = to_grid @@ List.drop _board 1 in
+  grid
+  |> grid_fold
+       ~init:(Set.empty (module IntPair_Comparator))
+       ~f:(fun sq acc _ ->
+         Stdio.printf "(%d, %d)\n%!" (fst sq) (snd sq);
+         List.fold ~init:acc
+           ~f:(fun acc die ->
+             Sequence.fold ~init:acc ~f:Set.add
+               (paths_from grid sq die Sequence.empty))
+           dice)
+  |> Set.length
+
+let%test_unit "part3 (given, 1)" =
+  [%test_eq: int] 33
+    (quest3part3
+       [
+         "1: faces=[1,2,3,4,5,6,7,8,9] seed=13";
+         "";
+         "1523758297";
+         "4822941583";
+         "7627997892";
+         "4397697132";
+         "1799773472";
+       ])
