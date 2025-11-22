@@ -348,12 +348,13 @@ let quest2part3 = shoot_in_circle 100000
 
 type die = {
   id : int;
-  faces : int array;
+  faces : (int array[@compare.ignore]);
   active_face : int;
   pulse : int;
   roll_number : int;
   seed : int;
 }
+[@@deriving compare, sexp_of]
 
 let roll_die { id; faces; pulse; active_face; roll_number; seed } =
   let spin = roll_number * pulse in
@@ -484,17 +485,40 @@ let%test_unit "part2 (given)" =
 
 let num_of_char ch = int_of_char ch - 48
 
-let rec paths_from grid sq die prefix_seq =
-  let result, next_die = roll_die die in
-  if num_of_char (grid_at grid sq) <> result then prefix_seq
-  else
-    (* we survive and can go in any direction *)
-    Sequence.concat @@ Sequence.of_list
-    @@ List.map
-         ~f:(fun neighbor ->
-           paths_from grid neighbor next_die
-             (Sequence.append prefix_seq (Sequence.singleton sq)))
-         (sq :: grid_cardinal_neighbors grid sq)
+(* we need dynamic programming, several intersecting things *)
+
+(* map is die specific.  so die -> (face, seed, int * int) -> visited squares *)
+
+module DieSquare = struct
+  type t = die * (int * int) [@@deriving compare, sexp_of]
+
+  let hash (die, (x, y)) =
+    let spin = die.roll_number * die.pulse in
+    let active_face = (die.active_face + spin) % Array.length die.faces in
+    Hashtbl.hash [ die.id; active_face; die.pulse; x; y ]
+end
+
+module DieSquare_Comparator = struct
+  include DieSquare
+  include Base.Comparator.Make (DieSquare)
+end
+
+let rec floop_fill grid sq die acc seen =
+  match Set.mem seen (die, sq) with
+  | true -> (acc, seen)
+  | false ->
+      let result, next_die = roll_die die in
+      let acc, seen =
+        if num_of_char (grid_at grid sq) <> result then (acc, seen)
+        else
+          (* we survive and can go in any direction *)
+          List.fold
+            ~init:(Set.add acc sq, seen)
+            ~f:(fun (acc, seen) neighbor ->
+              floop_fill grid neighbor next_die acc seen)
+            (sq :: grid_cardinal_neighbors grid sq)
+      in
+      (acc, Set.add seen (die, sq))
 
 let quest3part3 l =
   let split_n = l |> List.findi_exn ~f:(fun _ s -> equal_string s "") |> fst in
@@ -503,15 +527,14 @@ let quest3part3 l =
   let grid = to_grid @@ List.drop _board 1 in
   grid
   |> grid_fold
-       ~init:(Set.empty (module IntPair_Comparator))
-       ~f:(fun sq acc _ ->
-         Stdio.printf "(%d, %d)\n%!" (fst sq) (snd sq);
-         List.fold ~init:acc
-           ~f:(fun acc die ->
-             Sequence.fold ~init:acc ~f:Set.add
-               (paths_from grid sq die Sequence.empty))
+       ~init:
+         ( Set.empty (module IntPair_Comparator),
+           Set.empty (module DieSquare_Comparator) )
+       ~f:(fun sq (acc, map) _ ->
+         List.fold ~init:(acc, map)
+           ~f:(fun (acc, map) die -> floop_fill grid sq die acc map)
            dice)
-  |> Set.length
+  |> fst |> Set.length
 
 let%test_unit "part3 (given, 1)" =
   [%test_eq: int] 33
