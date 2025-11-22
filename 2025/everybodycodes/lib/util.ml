@@ -121,3 +121,5 @@ let grid_all_coords grid =
   List.cartesian_product
     (List.init ~f:id (fst grid.bounds))
     (List.init ~f:id (snd grid.bounds))
+
+let num_of_char ch = Char.to_int ch - 48

@@ -483,8 +483,6 @@ let%test_unit "part2 (given)" =
    not so bad.
    successful roll creates 4 branches *)
 
-let num_of_char ch = int_of_char ch - 48
-
 (* we need dynamic programming, several intersecting things *)
 
 (* map is die specific.  so die -> (face, seed, int * int) -> visited squares *)
