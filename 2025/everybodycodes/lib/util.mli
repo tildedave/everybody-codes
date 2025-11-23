@@ -38,3 +38,8 @@ val grid_diagonal_neighbors: grid -> int * int -> (int * int) list
 val grid_all_coords : grid -> (int * int) list
 
 val num_of_char : char -> int
+
+type tuple = int * int
+val equal_tuple: tuple -> tuple -> bool
+val show_tuple: tuple -> string
+val tuple_range: tuple -> tuple -> tuple list

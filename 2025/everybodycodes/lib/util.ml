@@ -123,3 +123,21 @@ let grid_all_coords grid =
     (List.init ~f:id (snd grid.bounds))
 
 let num_of_char ch = Char.to_int ch - 48
+
+type tuple = int * int [@@deriving eq, show]
+
+let tuple_range t1 t2 =
+  let dx, dy = (compare (fst t2) (fst t1), compare (snd t2) (snd t1)) in
+  let curr = ref t1 in
+  let result = ref [ t1 ] in
+  while not (equal_tuple !curr t2) do
+    let cx, cy = !curr in
+    curr := (cx + dx, cy + dy);
+    result := !curr :: !result
+  done;
+  List.rev !result
+
+let%test_unit "tuple_range (1)" =
+  [%test_eq: (int * int) list]
+    [ (1, 0); (2, 0); (3, 0) ]
+    (tuple_range (1, 0) (3, 0))

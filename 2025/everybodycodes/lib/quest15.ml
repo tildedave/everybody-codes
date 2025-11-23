@@ -39,7 +39,7 @@ let next_facing facing dir =
 
 let rec follow_directions (x, y, facing, walls) directions =
   match directions with
-  | [] -> ((x, y), Set.remove walls (x, y))
+  | [] -> ((0, 0), (x, y), Set.remove walls (x, y))
   | dir :: dl -> (
       let dx, dy = delta facing dir in
       let walk n =
@@ -59,12 +59,6 @@ let rec follow_directions (x, y, facing, walls) directions =
 
 let cardinal_deltas = [ (0, 1); (1, 0); (-1, 0); (0, -1) ]
 
-type tuple = int * int [@@deriving eq, show]
-type float_tuple = float * float [@@deriving show]
-
-let _ = show_tuple
-let _ = show_float_tuple
-
 let bounds walls =
   Set.fold
     ~init:((0, 0), (0, 0))
@@ -72,7 +66,7 @@ let bounds walls =
       ((min xmin x, min ymin y), (max xmax x, max ymax y)))
     walls
 
-let flood_fill (sq, walls) =
+let flood_fill distance_fn (start, goal, walls) =
   let queue, explored, distance, loop_done =
     ( Queue.create (),
       Hash_set.create (module IntPair),
@@ -80,22 +74,22 @@ let flood_fill (sq, walls) =
       ref false )
   in
   let (xmin, ymin), (xmax, ymax) = bounds walls in
-  Queue.enqueue queue (0, 0);
-  Hashtbl.add_exn distance ~key:(0, 0) ~data:0;
+  Queue.enqueue queue start;
+  Hashtbl.add_exn distance ~key:start ~data:0;
   while (not (Queue.is_empty queue)) && not !loop_done do
     let next = Queue.dequeue_exn queue in
-    if equal_tuple next sq then loop_done := true
+    if equal_tuple next goal then loop_done := true
     else
       List.iter
         ~f:(fun neighbor ->
           if not (Hash_set.mem explored neighbor) then (
             Hash_set.add explored neighbor;
             Hashtbl.set distance ~key:neighbor
-              ~data:(1 + Hashtbl.find_exn distance next);
+              ~data:(distance_fn next neighbor + Hashtbl.find_exn distance next);
             Queue.enqueue queue neighbor))
         (cardinal_deltas
         |> List.map ~f:(fun (dx, dy) -> (fst next + dx, snd next + dy))
-        |> List.filter ~f:(fun sq -> not (Set.mem walls sq))
+        |> List.filter ~f:(fun c -> not (Set.mem walls c))
         |> List.filter ~f:(fun (x, y) ->
                x >= xmin && x <= xmax && y >= ymin && y <= ymax))
   done;
@@ -105,7 +99,7 @@ let flood_fill (sq, walls) =
      for y = ymin to ymax do
        for x = xmin to xmax do
          Stdio.printf "%c"
-           (if equal_tuple (x, y) sq then 'E'
+           (if equal_tuple goal (x, y) then 'E'
             else if equal_tuple (0, 0) (x, y) then 'S'
             else if Set.mem walls (x, y) then '#'
             else if Hashtbl.mem distance (x, y) then '*'
@@ -113,12 +107,12 @@ let flood_fill (sq, walls) =
        done;
        Stdio.printf "\n"
      done; *)
-  Hashtbl.find_exn distance sq
+  Hashtbl.find_exn distance goal
 
 let part1 s =
   parse_instructions s
   |> follow_directions (0, 0, North, Set.empty (module IntPair_Comparator))
-  |> flood_fill
+  |> flood_fill (fun _ _ -> 1)
 
 let%test_unit "part1 (given 1)" =
   [%test_eq: int] 6 (part1 "R3,R4,L3,L4,R3,R6,R9")
@@ -149,22 +143,6 @@ let rec build_lines (x, y, facing, acc) directions =
           dl
       in
       match dir with Left n -> walk @@ n | Right n -> walk @@ n)
-
-let tuple_range t1 t2 =
-  let dx, dy = (compare (fst t2) (fst t1), compare (snd t2) (snd t1)) in
-  let curr = ref t1 in
-  let result = ref [ t1 ] in
-  while not (equal_tuple !curr t2) do
-    let cx, cy = !curr in
-    curr := (cx + dx, cy + dy);
-    result := !curr :: !result
-  done;
-  List.rev !result
-
-let%test_unit "tuple_range (1)" =
-  [%test_eq: (int * int) list]
-    [ (1, 0); (2, 0); (3, 0) ]
-    (tuple_range (1, 0) (3, 0))
 
 let build_compressed_walls lines (x_compressor, y_compressor) =
   let _compress_x, _compress_y =
@@ -197,64 +175,6 @@ let map_invert_exn m map =
   Map.fold map ~init:(Map.empty m) ~f:(fun ~key ~data acc ->
       Map.add_exn acc ~key:data ~data:key)
 
-let flood_fill_compressed start goal walls
-    (x_compressor, y_compressor, x_biggener, y_biggener) =
-  let queue, explored, distance, loop_done =
-    ( Queue.create (),
-      Hash_set.create (module IntPair),
-      Hashtbl.create (module IntPair),
-      ref false )
-  in
-  let _compress_x, _compress_y =
-    (Map.find_exn x_compressor, Map.find_exn y_compressor)
-  in
-  let _expand_x, _expand_y =
-    (Map.find_exn x_biggener, Map.find_exn y_biggener)
-  in
-  let (xmin, ymin), (xmax, ymax) = bounds walls in
-  Queue.enqueue queue start;
-  Hashtbl.add_exn distance ~key:start ~data:0;
-  while (not (Queue.is_empty queue)) && not !loop_done do
-    let next = Queue.dequeue_exn queue in
-    if equal_tuple next goal then loop_done := true
-    else
-      List.iter
-        ~f:(fun neighbor ->
-          let x_distance, y_distance =
-            match (neighbor, next) with
-            | (x1, y1), (x2, y2) ->
-                ( Int.abs (_expand_x x2 - _expand_x x1),
-                  Int.abs (_expand_y y2 - _expand_y y1) )
-          in
-          if not (Hash_set.mem explored neighbor) then (
-            Hash_set.add explored neighbor;
-            Hashtbl.set distance ~key:neighbor
-              ~data:(x_distance + y_distance + Hashtbl.find_exn distance next);
-            Queue.enqueue queue neighbor))
-        (cardinal_deltas
-        |> List.map ~f:(fun (dx, dy) -> (fst next + dx, snd next + dy))
-        |> List.filter ~f:(fun sq -> not (Set.mem walls sq))
-        |> List.filter ~f:(fun (x, y) ->
-               x >= xmin && x <= xmax && y >= ymin && y <= ymax))
-  done;
-  (* Stdio.printf "bounds %s %s\n"
-       (show_tuple (xmin, xmax))
-       (show_tuple (ymin, ymax));
-     for y = ymin to ymax do
-       for x = xmin to xmax do
-         Stdio.printf "%c"
-           (if equal_tuple (x, y) goal then 'E'
-            else if equal_tuple start (x, y) then 'S'
-            else if Set.mem walls (tuple_expand (x, y)) then '#'
-            else if Hashtbl.mem distance (x, y) then '*'
-            else '.')
-       done;
-       Stdio.printf "\n"
-     done; *)
-  Hashtbl.find_exn distance goal
-
-let _ = flood_fill_compressed
-
 let part3 s =
   let sq, lines = parse_instructions s |> build_lines (0, 0, North, []) in
   let _invert = map_invert_exn (module Int) in
@@ -269,8 +189,11 @@ let part3 s =
   let walls =
     Set.remove (build_compressed_walls lines (x_compressor, y_compressor)) goal
   in
-  flood_fill_compressed start goal walls
-    (x_compressor, y_compressor, x_biggener, y_biggener)
+  flood_fill
+    (fun (sx, sy) (ex, ey) ->
+      Int.abs (Map.find_exn x_biggener sx - Map.find_exn x_biggener ex)
+      + Int.abs (Map.find_exn y_biggener sy - Map.find_exn y_biggener ey))
+    (start, goal, walls)
 
 let%test_unit "part3 (given for part1)" =
   [%test_eq: int] 16
