@@ -1,5 +1,6 @@
-val read_lines : string -> string list
 val concat_ints : int list -> int
+type ilist = int list
+val show_ilist : int list -> string
 
 val mod_positive : int -> int -> int
 val mod_exp: int -> int -> int -> int
@@ -43,3 +44,4 @@ type tuple = int * int
 val equal_tuple: tuple -> tuple -> bool
 val show_tuple: tuple -> string
 val tuple_range: tuple -> tuple -> tuple list
+val isqrt : int -> int

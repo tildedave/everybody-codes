@@ -1,9 +1,9 @@
 (* https://stackoverflow.com/questions/5774934/how-do-i-read-in-lines-from-a-text-file-in-ocaml/73019499#73019499 *)
 
 open Base
+open Core
 
-let read_lines (file_name : string) : string list =
-  In_channel.with_open_text file_name In_channel.input_lines
+type ilist = int list [@@deriving show]
 
 let mod_positive n a =
   let m = n % a in
@@ -141,3 +141,12 @@ let%test_unit "tuple_range (1)" =
   [%test_eq: (int * int) list]
     [ (1, 0); (2, 0); (3, 0) ]
     (tuple_range (1, 0) (3, 0))
+
+let isqrt_nonrecurive isqrt n =
+  if n < 2 then n
+  else
+    let small = isqrt (n lsr 2) lsl 1 in
+    let large = small + 1 in
+    if large * large > n then small else large
+
+let isqrt = Memo.recursive ~hashable:Int.hashable isqrt_nonrecurive
