@@ -103,6 +103,14 @@ let grid_fold grid ~f ~init =
       Array.foldi ~init:acc ~f:(fun x acc ch -> f (x, y) acc ch) arr)
     grid.cells
 
+let grid_find grid ~f =
+  with_return (fun r ->
+      Array.iteri
+        ~f:(fun y arr ->
+          Array.iteri ~f:(fun x ch -> if f ch then r.return (Some (x, y))) arr)
+        grid.cells;
+      None)
+
 let grid_neighbors deltas g (x, y) =
   let xmax, ymax = g.bounds in
   List.filter

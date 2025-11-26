@@ -37,6 +37,7 @@ val grid_at: grid -> int * int -> char
 val grid_cardinal_neighbors: grid -> int * int -> (int * int) list
 val grid_diagonal_neighbors: grid -> int * int -> (int * int) list
 val grid_all_coords : grid -> (int * int) list
+val grid_find : grid -> f:(char -> bool) -> (int * int) option
 
 val num_of_char : char -> int
 

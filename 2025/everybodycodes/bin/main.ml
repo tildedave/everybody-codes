@@ -63,6 +63,9 @@ Stdio.print_endline
    | "quest16", "1" -> Int.to_string @@ Quest16.part1 @@ List.hd_exn lines
    | "quest16", "2" -> Int.to_string @@ Quest16.part2 @@ List.hd_exn lines
    | "quest16", "3" -> Int.to_string @@ Quest16.part3 @@ List.hd_exn lines
+   | "quest17", "1" -> Int.to_string @@ Quest17.part1 lines
+   | "quest17", "2" -> Int.to_string @@ Quest17.part2 lines
+   | "quest17", "3" -> Int.to_string @@ Quest17.part3 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
