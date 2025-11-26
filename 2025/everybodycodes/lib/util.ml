@@ -132,7 +132,10 @@ let grid_all_coords grid =
 
 let num_of_char ch = Char.to_int ch - 48
 
-type tuple = int * int [@@deriving eq, show]
+type tuple = int * int [@@deriving eq, compare, show, sexp_of]
+
+let _ = sexp_of_tuple
+let _ = pp_tuple
 
 let tuple_range t1 t2 =
   let dx, dy = (compare (fst t2) (fst t1), compare (snd t2) (snd t1)) in
