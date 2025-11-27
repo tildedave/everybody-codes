@@ -136,30 +136,28 @@ let neighbors grid vcoords { position; time; progress; closest_radius } =
         | None -> progress
         | Some q -> if q = progress + 1 then progress + 1 else progress
       in
-      (*
       if
         match next_quadrant with
         | Some q ->
-            if progress = 4 then false else q <> progress + 1 && q <> progress
+            q <> progress + 1 && q <> progress && not (progress = 4 && q = 1)
         | None -> false
       then (* going to the wrong section, or going backwards *)
         None
       else
-        *)
-      let time_used =
-        match grid_at grid ncoords with 'S' -> 0 | ch -> num_of_char ch
-      in
-      let next =
-        {
-          position = ncoords;
-          time = time + time_used;
-          progress = next_progress;
-          closest_radius =
-            min closest_radius (distance_to_volcano vcoords ncoords);
-        }
-      in
-      let volcano_radius = next.time / 30 in
-      if next.closest_radius <= volcano_radius then None else Some next)
+        let time_used =
+          match grid_at grid ncoords with 'S' -> 0 | ch -> num_of_char ch
+        in
+        let next =
+          {
+            position = ncoords;
+            time = time + time_used;
+            progress = next_progress;
+            closest_radius =
+              min closest_radius (distance_to_volcano vcoords ncoords);
+          }
+        in
+        let volcano_radius = next.time / 30 in
+        if next.closest_radius <= volcano_radius then None else Some next)
     (grid_cardinal_neighbors grid position)
 
 (* also keep track of a "best time/progress for square" and prune based on that *)
