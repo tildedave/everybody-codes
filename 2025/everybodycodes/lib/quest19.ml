@@ -10,10 +10,6 @@ let neighbors ((x, y), flap_count) next_walls =
   match Hashtbl.find next_walls x with
   | None -> []
   | Some walls -> (
-      (* Stdio.printf "(%d, %d) walls %s\n" x y
-         (String.concat ~sep:","
-            (List.map walls ~f:(fun (x, (sy, ey)) ->
-                 Printf.sprintf "%d [%d --> %d]" x sy ey))); *)
       let next =
         [ ((x + 1, y - 1), flap_count); ((x + 1, y + 1), flap_count + 1) ]
       in
@@ -36,14 +32,15 @@ let part1 l =
     ~f:(fun n v -> Hashtbl.add_exn next_walls ~key:n ~data:v)
     (List.init (last_segment + 1) ~f:(fun x ->
          walls
-         |> List.drop_while ~f:(fun (wx, _) -> x > wx)
-         |> List.take_while ~f:(fun (wx, _) -> x <= wx)));
+         |> List.drop_while ~f:(fun (wx, _) -> x + 1 > wx)
+         |> List.take_while ~f:(fun (wx, _) -> x + 1 = wx)));
   let queue = Queue.create () in
   Queue.enqueue queue ((0, 0), 0);
   let best_flaps = ref Int.max_value in
   let best_for_spot = Hashtbl.create (module IntPair) in
   while not (Queue.is_empty queue) do
     let next = Queue.dequeue_exn queue in
+    (* Stdio.printf "%s %d\n%!" (show_tuple (fst next)) (snd next); *)
     match next with
     | coords, flap_count ->
         if fst coords = last_segment then
