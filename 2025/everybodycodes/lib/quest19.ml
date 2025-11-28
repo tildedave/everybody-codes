@@ -1,4 +1,7 @@
+[@@@ocaml.warning "-33"]
+
 open Base
+open Core
 open Util
 
 let parse_segments s =
@@ -6,34 +9,34 @@ let parse_segments s =
   | [ x; ystart; yheight ] -> (x, (ystart, ystart + yheight))
   | _ -> failwith "invalid input"
 
-let neighbors ((x, y), flap_count) next_walls =
-  match Hashtbl.find next_walls x with
-  | None -> []
-  | Some walls -> (
-      let next =
-        [ ((x + 1, y - 1), flap_count); ((x + 1, y + 1), flap_count + 1) ]
-      in
-      match walls with
-      | (wx, _) :: _ ->
-          if wx = x + 1 then
-            List.filter next ~f:(fun ((_, y), _) ->
-                Option.is_some
-                  (List.find walls ~f:(fun (_, (sy, ey)) -> sy <= y && y < ey)))
-          else next
-      | _ -> next)
-(* else if y + (wx - x) < sy then []
-   else if y - (wx - x) > ey then [] *)
+let neighbors ((x, y), flap_count) wall_finder =
+  let walls = wall_finder x in
+  let next =
+    [ ((x + 1, y - 1), flap_count); ((x + 1, y + 1), flap_count + 1) ]
+  in
+  match walls with
+  | [] -> []
+  | (wx, _) :: _ ->
+      if wx = x + 1 then
+        List.filter next ~f:(fun ((_, y), _) ->
+            Option.is_some
+              (List.find walls ~f:(fun (_, (sy, ey)) -> sy <= y && y < ey)))
+      else next
 
-let part1 l =
+let find_next_walls walls =
+  let find x =
+    let prefixes = walls |> List.drop_while ~f:(fun (wx, _) -> x >= wx) in
+    match prefixes with
+    | [] -> []
+    | (wx, _) :: _ -> List.take_while prefixes ~f:(fun (wx', _) -> wx = wx')
+  in
+  Memo.general find
+(* binary search *)
+
+let flap l =
   let walls = List.map l ~f:parse_segments in
-  let last_segment = walls |> List.last_exn |> fst in
-  let next_walls = Hashtbl.create (module Int) in
-  List.iteri
-    ~f:(fun n v -> Hashtbl.add_exn next_walls ~key:n ~data:v)
-    (List.init (last_segment + 1) ~f:(fun x ->
-         walls
-         |> List.drop_while ~f:(fun (wx, _) -> x + 1 > wx)
-         |> List.take_while ~f:(fun (wx, _) -> x + 1 = wx)));
+  let last_segment = fst @@ List.last_exn walls in
+  let wall_finder = find_next_walls walls in
   let queue = Queue.create () in
   Queue.enqueue queue ((0, 0), 0);
   let best_flaps = ref Int.max_value in
@@ -53,7 +56,7 @@ let part1 l =
         then ()
         else (
           Hashtbl.set best_for_spot ~key:coords ~data:flap_count;
-          List.iter (neighbors next next_walls) ~f:(Queue.enqueue queue))
+          List.iter (neighbors next wall_finder) ~f:(Queue.enqueue queue))
     (* ()
        els
        if flap_count > best then (
@@ -65,6 +68,3 @@ let part1 l =
        | (x, y), flap_count -> ; *)
   done;
   !best_flaps
-
-let part2 _ = 1
-let part3 _ = 1
