@@ -152,7 +152,10 @@ let part2 l =
 
 (* OK, something like this will work *)
 
-let large_c = Lp.c 7890.0
+let big_c = 10000000.
+let minus_c = -.big_c
+let large_c = Lp.c big_c
+let epsilon = Lp.c 0.0001
 
 let build plants_by_id last_pid =
   let open Lp in
@@ -161,25 +164,15 @@ let build plants_by_id last_pid =
   let y_pon = Hashtbl.create (module Int) in
   let y_freebranches = Hashtbl.create (module Int) in
   Map.iter_keys plants_by_id ~f:(fun pid ->
-      Hashtbl.add_exn p_inc ~key:pid ~data:(var (Printf.sprintf "p%d_inc" pid));
+      Hashtbl.add_exn p_inc ~key:pid
+        ~data:(var (Printf.sprintf "p%d_inc" pid) ~lb:minus_c ~ub:big_c);
       Hashtbl.add_exn p_out ~key:pid ~data:(var (Printf.sprintf "p%d_out" pid));
       Hashtbl.add_exn y_pon ~key:pid
-        ~data:(var (Printf.sprintf "yp%d_on" pid) ~integer:true ~lb:0.0 ~ub:1.0);
-      match Map.find_exn plants_by_id pid with
-      | Plant (_, _, branches) ->
-          List.iter branches ~f:(fun branch ->
-              match branch with
-              | FreeBranch _ ->
-                  Hashtbl.add_exn y_freebranches ~key:pid
-                    ~data:
-                      (var
-                         (Printf.sprintf "free%d" pid)
-                         ~integer:true ~lb:0. ~ub:1.)
-              | _ -> ()));
+        ~data:(var (Printf.sprintf "yp%d_on" pid) ~integer:true ~lb:0. ~ub:1.));
   let z = var "z" in
   let constraints =
     Map.fold plants_by_id
-      ~init:[ eq z (Hashtbl.find_exn p_out last_pid) ]
+      ~init:[ eq z (Hashtbl.find_exn p_inc last_pid) ]
       ~f:(fun ~key ~data acc ->
         match data with
         | Plant (_, plant_thickness, branches) ->
@@ -188,7 +181,7 @@ let build plants_by_id last_pid =
                 (List.map
                    ~f:(fun branch ->
                      match branch with
-                     | FreeBranch _ -> Hashtbl.find_exn y_freebranches key
+                     | FreeBranch _ -> Hashtbl.find_exn y_pon key
                      | PlantBranch (branch_id, branch_thickness) ->
                          Hashtbl.find_exn p_out branch_id
                          *~ c (Float.of_int branch_thickness))
@@ -211,7 +204,13 @@ let build plants_by_id last_pid =
   in
   Stdio.printf "%s\n"
     (String.concat ~sep:"\n" (List.map ~f:Lp.Cnstr.to_string constraints));
-  (make (maximize z) constraints, z)
+  ( make (maximize z)
+      (* ((Hashtbl.find_exn y_pon 1 =~ c 1.0)
+         :: (Hashtbl.find_exn y_pon 2 =~ c 0.0)
+         :: (Hashtbl.find_exn y_pon 3 =~ c 1.0)
+         :: constraints), *)
+      constraints,
+    z )
 
 (* copied from ocaml-lp, available in 0.5.0 *)
 
