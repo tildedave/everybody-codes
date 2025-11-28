@@ -69,6 +69,9 @@ Stdio.print_endline
    | "quest18", "1" -> Int.to_string @@ Quest18.part1 lines
    | "quest18", "2" -> Int.to_string @@ Quest18.part2 lines
    | "quest18", "3" -> Int.to_string @@ Quest18.part3 lines
+   | "quest19", "1" -> Int.to_string @@ Quest19.part1 lines
+   | "quest19", "2" -> Int.to_string @@ Quest19.part2 lines
+   | "quest19", "3" -> Int.to_string @@ Quest19.part3 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
