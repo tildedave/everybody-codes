@@ -152,7 +152,7 @@ let part2 l =
 
 (* OK, something like this will work *)
 
-let large_c = Lp.c 1000000.0
+let large_c = Lp.c 7890.0
 
 let build plants_by_id last_pid =
   let open Lp in
