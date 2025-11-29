@@ -44,8 +44,11 @@ let direction_between (x, y) (x', y') =
   | _ -> failwith "invalid"
 
 let can_jump triangle coords ncoords =
-  if not (equal_char (grid_at triangle.grid coords) 'T') then false
-  else if not (equal_char (grid_at triangle.grid ncoords) 'T') then false
+  let from_char = grid_at triangle.grid coords in
+  let to_char = grid_at triangle.grid ncoords in
+
+  if not (equal_char from_char 'T' || equal_char from_char 'S') then false
+  else if not (equal_char to_char 'T' || equal_char to_char 'E') then false
   else
     let polarity, npolarity =
       ( Map.find_exn triangle.polarity coords,
@@ -70,3 +73,30 @@ let part1 l =
       t.grid
   in
   result / 2
+
+(* BFS is fine I guess *)
+let part2 l =
+  let t = l |> to_grid |> to_triangle in
+  let queue = Queue.create () in
+  let start = t.grid |> grid_find ~f:(equal_char 'S') |> Option.value_exn in
+  let goal = t.grid |> grid_find ~f:(equal_char 'E') |> Option.value_exn in
+  let distance = Hashtbl.create (module IntPair) in
+  let explored = Hash_set.create (module IntPair) in
+  Queue.enqueue queue start;
+  Hashtbl.set distance ~key:start ~data:0;
+  Hash_set.add explored start;
+  let loop_done = ref false in
+  while (not (Queue.is_empty queue)) && not !loop_done do
+    let next = Queue.dequeue_exn queue in
+    if equal_tuple next goal then loop_done := true
+    else
+      List.iter
+        ~f:(fun neighbor ->
+          if not (Hash_set.mem explored neighbor) then (
+            Hash_set.add explored neighbor;
+            Hashtbl.set distance ~key:neighbor
+              ~data:(Hashtbl.find_exn distance next + 1);
+            Queue.enqueue queue neighbor))
+        (List.filter ~f:(can_jump t next) (grid_cardinal_neighbors t.grid next))
+  done;
+  Hashtbl.find_exn distance goal
