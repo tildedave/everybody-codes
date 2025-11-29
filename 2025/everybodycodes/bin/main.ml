@@ -72,6 +72,7 @@ Stdio.print_endline
    | "quest19", "1" -> Int.to_string @@ Quest19.flap lines
    | "quest19", "2" -> Int.to_string @@ Quest19.flap lines
    | "quest19", "3" -> Int.to_string @@ Quest19.flap lines
+   | "quest20", "1" -> Int.to_string @@ Quest20.part1 lines
    | "story1-quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1-quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1-quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
