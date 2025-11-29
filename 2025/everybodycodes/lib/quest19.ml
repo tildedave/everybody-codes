@@ -9,19 +9,40 @@ let parse_segments s =
   | [ x; ystart; yheight ] -> (x, (ystart, ystart + yheight))
   | _ -> failwith "invalid input"
 
-let neighbors ((x, y), flap_count) wall_finder =
+let flap_count (x, y) (destx, desty) =
+  if (destx + desty) % 2 = 1 then None
+  else
+    (* adjust to y, then maintain height *)
+    let time = Int.abs (desty - y) in
+    Some ((if desty > y then time else 0) + ((destx - x - time) / 2))
+
+let%test_unit "flap_count (1)" =
+  [%test_eq: int option] (Some 1) (flap_count (0, 0) (1, 1))
+
+let%test_unit "flap_count (2)" =
+  [%test_eq: int option] (Some 1) (flap_count (0, 0) (2, 0))
+
+let%test_unit "flap_count (3)" =
+  [%test_eq: int option] (Some 7) (flap_count (0, 0) (7, 7))
+
+let%test_unit "flap_count (4)" =
+  [%test_eq: int option] (Some 0) (flap_count (7, 7) (12, 2))
+
+let%test_unit "flap_count (5)" =
+  [%test_eq: int option] (Some 4) (flap_count (15, 5) (24, 4))
+
+let neighbors ((x, y), f) wall_finder : (tuple * int) list =
   let walls = wall_finder x in
-  let next =
-    [ ((x + 1, y - 1), flap_count); ((x + 1, y + 1), flap_count + 1) ]
-  in
-  match walls with
-  | [] -> []
-  | (wx, _) :: _ ->
-      if wx = x + 1 then
-        List.filter next ~f:(fun ((_, y), _) ->
-            Option.is_some
-              (List.find walls ~f:(fun (_, (sy, ey)) -> sy <= y && y < ey)))
-      else next
+  List.fold ~init:[]
+    ~f:(fun acc (wx, (sy, ey)) ->
+      List.append acc
+        (List.filter_map
+           ~f:(fun wy ->
+             match flap_count (x, y) (wx, wy) with
+             | None -> None
+             | Some s -> Some ((wx, wy), f + s))
+           (sy -- (ey - 1))))
+    walls
 
 let find_next_walls walls =
   let find x =
@@ -31,7 +52,6 @@ let find_next_walls walls =
     | (wx, _) :: _ -> List.take_while prefixes ~f:(fun (wx', _) -> wx = wx')
   in
   Memo.general find
-(* binary search *)
 
 let flap l =
   let walls = List.map l ~f:parse_segments in
@@ -43,7 +63,7 @@ let flap l =
   let best_for_spot = Hashtbl.create (module IntPair) in
   while not (Queue.is_empty queue) do
     let next = Queue.dequeue_exn queue in
-    (* Stdio.printf "%s %d\n%!" (show_tuple (fst next)) (snd next); *)
+    Stdio.printf "%s %d\n%!" (show_tuple (fst next)) (snd next);
     match next with
     | coords, flap_count ->
         if fst coords = last_segment then
@@ -57,14 +77,7 @@ let flap l =
         else (
           Hashtbl.set best_for_spot ~key:coords ~data:flap_count;
           List.iter (neighbors next wall_finder) ~f:(Queue.enqueue queue))
-    (* ()
-       els
-       if flap_count > best then (
-         Stdio.printf "pruned (%d, %d) [%d flaps, best was %d]" (fst coords)
-           (snd coords) flap_count best;
-         ())
-       else *)
-    (* (match next with
-       | (x, y), flap_count -> ; *)
   done;
   !best_flaps
+
+(* can maybe solve this with an angle approach *)
