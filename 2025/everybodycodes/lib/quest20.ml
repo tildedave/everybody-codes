@@ -30,31 +30,43 @@ let to_triangle grid =
   done;
   { grid; polarity = !result }
 
-let is_above (x, y) (x', y') = x = x' && y = y' - 1
+type direction = Left | Up | Down | Right [@@deriving equal, show]
+
+let _ = show_direction
+let _ = pp_direction
+
+let direction_between (x, y) (x', y') =
+  match (x' - x, y' - y) with
+  | 0, 1 -> Down
+  | 0, -1 -> Up
+  | 1, 0 -> Right
+  | -1, 0 -> Left
+  | _ -> failwith "invalid"
+
+let can_jump triangle coords ncoords =
+  if not (equal_char (grid_at triangle.grid coords) 'T') then false
+  else if not (equal_char (grid_at triangle.grid ncoords) 'T') then false
+  else
+    let polarity, npolarity =
+      ( Map.find_exn triangle.polarity coords,
+        Map.find_exn triangle.polarity ncoords )
+    in
+    if equal_polarity polarity npolarity then false
+    else
+      match (direction_between coords ncoords, polarity, npolarity) with
+      | Down, Up, Down -> false
+      | Up, Down, Up -> false
+      | _ -> true
 
 let part1 l =
   let t = l |> to_grid |> to_triangle in
   let result =
     grid_fold ~init:0
-      ~f:(fun coords acc ch ->
-        if equal_char ch 'T' then
-          let polarity = Map.find_exn t.polarity coords in
-          List.fold ~init:acc
-            ~f:(fun acc ncoords ->
-              if not (equal_char (grid_at t.grid ncoords) 'T') then acc
-              else
-                let npolarity = Map.find_exn t.polarity ncoords in
-                if equal_polarity polarity npolarity then acc
-                else if
-                  is_above coords ncoords
-                  &&
-                  match (polarity, npolarity) with
-                  | Up, Down -> true
-                  | _ -> false
-                then acc
-                else acc + 1)
-            (grid_neighbors [ (0, 1); (1, 0) ] t.grid coords)
-        else acc)
+      ~f:(fun coords acc _ ->
+        List.fold ~init:acc
+          ~f:(fun acc ncoords ->
+            if can_jump t coords ncoords then acc + 1 else acc)
+          (grid_cardinal_neighbors t.grid coords))
       t.grid
   in
-  result
+  result / 2
