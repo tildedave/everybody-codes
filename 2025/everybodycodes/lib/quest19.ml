@@ -11,6 +11,7 @@ let parse_segments s =
 
 let flap_count (x, y) (destx, desty) =
   if (destx + desty) % 2 = 1 then None
+  else if Int.abs (desty - y) > Int.abs (destx - x) then None
   else
     (* adjust to y, then maintain height *)
     let time = Int.abs (desty - y) in
@@ -18,6 +19,9 @@ let flap_count (x, y) (destx, desty) =
 
 let%test_unit "flap_count (1)" =
   [%test_eq: int option] (Some 1) (flap_count (0, 0) (1, 1))
+
+let%test_unit "flap_count (inadmissable)" =
+  [%test_eq: int option] None (flap_count (0, 0) (1, 3))
 
 let%test_unit "flap_count (2)" =
   [%test_eq: int option] (Some 1) (flap_count (0, 0) (2, 0))
@@ -63,7 +67,6 @@ let flap l =
   let best_for_spot = Hashtbl.create (module IntPair) in
   while not (Queue.is_empty queue) do
     let next = Queue.dequeue_exn queue in
-    Stdio.printf "%s %d\n%!" (show_tuple (fst next)) (snd next);
     match next with
     | coords, flap_count ->
         if fst coords = last_segment then
