@@ -42,7 +42,7 @@ let create_triangle_grid l =
       for x = 0 to String.length s - 1 do
         if (not !seen_beginning) && not (equal_char s.[x] '.') then
           seen_beginning := true;
-        if !seen_beginning then (
+        if !seen_beginning && not (equal_char s.[x] '.') then (
           m := Map.add_exn !m ~key:(!q, r, !polarity) ~data:s.[x];
           match !polarity with
           | Left -> polarity := Right
@@ -53,12 +53,9 @@ let create_triangle_grid l =
       !m)
     l
 
-let can_jump triangle coords ncoords =
-  let from_char = Map.find_exn triangle coords in
+let can_jump triangle ncoords =
   let to_char = Map.find_exn triangle ncoords in
-  if not (equal_char from_char 'T' || equal_char from_char 'S') then false
-  else if not (equal_char to_char 'T' || equal_char to_char 'E') then false
-  else true
+  equal_char to_char 'T' || equal_char to_char 'E'
 
 let part1 l =
   let t = create_triangle_grid l in
@@ -66,8 +63,7 @@ let part1 l =
     Map.fold ~init:0
       ~f:(fun ~key:coords ~data:_ acc ->
         List.fold ~init:acc
-          ~f:(fun acc ncoords ->
-            if can_jump t coords ncoords then acc + 1 else acc)
+          ~f:(fun acc ncoords -> if can_jump t ncoords then acc + 1 else acc)
           (triangle_neighbors t coords))
       t
   in
@@ -103,7 +99,7 @@ let part2 l =
             Hashtbl.set distance ~key:neighbor
               ~data:(Hashtbl.find_exn distance next + 1);
             Queue.enqueue queue neighbor))
-        (List.filter ~f:(can_jump t next) (triangle_neighbors t next))
+        (List.filter ~f:(can_jump t) (triangle_neighbors t next))
   done;
   Hashtbl.find_exn distance goal
 
@@ -198,45 +194,54 @@ OK so example:
 let walk_right coord goal =
   let open Sequence.Step in
   Sequence.unfold_step ~init:coord ~f:(fun (q, r, polarity) ->
-      let next =
-        match polarity with Left -> (q, r, Right) | Right -> (q + 1, r, Left)
-      in
-      if equal_triangle_coord next goal then Done
-      else Yield { value = next; state = next })
+      if equal_triangle_coord (q, r, polarity) goal then Done
+      else
+        let next =
+          match polarity with Left -> (q, r, Right) | Right -> (q + 1, r, Left)
+        in
+        Yield { value = (q, r, polarity); state = next })
 
 let walk_up_left coord goal =
   let open Sequence.Step in
   Sequence.unfold_step ~init:coord ~f:(fun (q, r, polarity) ->
-      let next =
-        match polarity with Left -> (q, r - 1, Right) | Right -> (q, r, Left)
-      in
-      if equal_triangle_coord next goal then Done
-      else Yield { value = next; state = next })
+      if equal_triangle_coord (q, r, polarity) goal then Done
+      else
+        let next =
+          match polarity with Left -> (q, r - 1, Right) | Right -> (q, r, Left)
+        in
+        Yield { value = (q, r, polarity); state = next })
 
 let walk_down_left coord goal =
   let open Sequence.Step in
   Sequence.unfold_step ~init:coord ~f:(fun (q, r, polarity) ->
-      let next =
-        match polarity with
-        | Left -> (q - 1, r, Right)
-        | Right -> (q, r + 1, Left)
-      in
-      if equal_triangle_coord next goal then Done
-      else Yield { value = next; state = next })
+      if equal_triangle_coord (q, r, polarity) goal then Done
+      else
+        let next =
+          match polarity with
+          | Left -> (q - 1, r, Right)
+          | Right -> (q, r + 1, Left)
+        in
+        Yield { value = (q, r, polarity); state = next })
 
-let rotation_map t =
-  let rec loop (left, right, bottom) map n =
-    Stdio.printf "triangle formed by %s %s %s%!\n" (show_triangle_coord left)
-      (show_triangle_coord right)
-      (show_triangle_coord bottom);
+let create_rotation_map t =
+  let rec loop (left, right, bottom) map =
+    (* Stdio.printf "triangle formed by %s %s %s%!\n" (show_triangle_coord left)
+       (show_triangle_coord right)
+       (show_triangle_coord bottom); *)
     (* issue: the recursive step will need to stop at a cetain point,
        how to determine this *)
+    (* Stdio.printf "map size %d\n" (Map.length map); *)
     let next_map =
       Sequence.fold ~init:map ~f:(fun map (source, dest) ->
-          Stdio.printf "source -> %s goes to dest -> %s%!\n"
-            (show_triangle_coord source)
-            (show_triangle_coord dest);
-          Map.set map ~key:source ~data:dest)
+          (* Stdio.printf "source -> %s goes to dest -> %s%!\n"
+             (show_triangle_coord source)
+             (show_triangle_coord dest); *)
+          Map.update map source ~f:(fun existing ->
+              match existing with
+              | None -> dest
+              | Some already ->
+                  if equal_triangle_coord already dest then dest
+                  else failwith "conflicting mappings"))
       @@ Sequence.concat
       @@ Sequence.of_list
            [
@@ -262,14 +267,123 @@ let rotation_map t =
           || (not (Map.mem t next_left))
           || not (Map.mem t next_bottom)
         then map
-        else if n < 3 then loop (next_left, next_right, next_bottom) map (n + 1)
-        else map
+        else if
+          equal_triangle_coord next_left next_right
+          && equal_triangle_coord next_right next_bottom
+        then Map.add_exn next_map ~key:next_left ~data:next_bottom
+        else loop (next_left, next_right, next_bottom) next_map
   in
-  loop (endpoints t) (Map.empty (module TriangleCoord_Comparator)) 0
+  loop (endpoints t) (Map.empty (module TriangleCoord_Comparator))
 
-(* mapping comes from this: *)
-(* then find new midpoints and recurse... *)
+let%test_unit "create_rotation_map" =
+  let t = create_triangle_grid example_triangle in
+  [%test_eq: int] (Map.length t) (Map.length (create_rotation_map t))
 
-let%test_unit "rotation_map" =
-  [%test_eq: int] 0
-    (Map.length (rotation_map (create_triangle_grid example_triangle)))
+(* OK rotation map "works".  final job is to make a search state based off it
+   and a special neighbors function.  then that should be it *)
+
+let to_string t =
+  let _, right, bottom = endpoints t in
+  let result = Buffer.create 0 in
+  match (right, bottom) with
+  | (rightq, _, _), (_, bottomr, _) ->
+      for r = 0 to bottomr do
+        Buffer.add_string result (String.init r ~f:(fun _ -> '.'));
+        for q = 0 to rightq do
+          (match Map.find t (q, r, Left) with
+          | Some ch -> Buffer.add_char result ch
+          | _ -> ());
+          match Map.find t (q, r, Right) with
+          | Some ch -> Buffer.add_char result ch
+          | _ -> ()
+        done;
+        Buffer.add_string result (String.init r ~f:(fun _ -> '.'));
+        Buffer.add_char result '\n'
+      done;
+      Buffer.contents result
+
+let rotate_triangle rotation_map =
+  Map.fold
+    ~init:(Map.empty (module TriangleCoord_Comparator))
+    ~f:(fun ~key ~data acc ->
+      Map.add_exn acc ~key:(Map.find_exn rotation_map key) ~data)
+
+(* confirmed rotation is working correctly *)
+(*
+let%test_unit "to_string" =
+  let t = create_triangle_grid example_triangle in
+  [%test_eq: string] "" (to_string t)
+
+let%test_unit "to_string (rotation)" =
+  let t = create_triangle_grid example_triangle in
+  let rotation_map = create_rotation_map t in
+  [%test_eq: string] "" (to_string (rotate_triangle rotation_map t))
+
+let%test_unit "to_string (rotation x2)" =
+  let t = create_triangle_grid example_triangle in
+  let rotation_map = create_rotation_map t in
+  [%test_eq: string] ""
+    (to_string (rotate_triangle rotation_map (rotate_triangle rotation_map t))) *)
+
+module SearchState = struct
+  type t = triangle_coord * int [@@deriving compare, sexp_of, show]
+
+  let hash = Hashtbl.hash
+end
+
+module SearchState_Comparator = struct
+  include SearchState
+  include Base.Comparator.Make (SearchState)
+end
+
+let searchstate_neighbors t rotation_map (tcoords, num) =
+  (Map.find_exn rotation_map tcoords, (num + 1) % 3)
+  :: List.map
+       ~f:(fun ncoords -> (Map.find_exn rotation_map ncoords, (num + 1) % 3))
+       (triangle_neighbors t tcoords)
+
+let rotated_char_at t rotation_map (tcoords, num) =
+  let coords = ref tcoords in
+  for _ = 0 to num do
+    coords := Map.find_exn rotation_map !coords
+  done;
+  Map.find_exn t !coords
+
+let can_jump_p3 t rotation_map (tcoords, num) =
+  let coords = ref tcoords in
+  for _ = 0 to num - 1 do
+    coords := Map.find_exn rotation_map !coords
+  done;
+  can_jump t !coords
+
+let part3 l =
+  let t = create_triangle_grid l in
+  let rotation_map = create_rotation_map t in
+  let queue = Queue.create () in
+  let start = (find_triangle_coord t 'S' |> Option.value_exn, 0) in
+  let goal = find_triangle_coord t 'E' |> Option.value_exn in
+  let distance = Hashtbl.create (module SearchState) in
+  let explored = Hash_set.create (module SearchState) in
+  Queue.enqueue queue start;
+  Hashtbl.set distance ~key:start ~data:0;
+  Hash_set.add explored start;
+  let loop_done = ref false in
+  let result = ref 0 in
+  while (not (Queue.is_empty queue)) && not !loop_done do
+    let next = Queue.dequeue_exn queue in
+    if equal_triangle_coord (fst next) goal then (
+      loop_done := true;
+      result := Hashtbl.find_exn distance next)
+    else
+      List.iter
+        ~f:(fun neighbor ->
+          if not (Hash_set.mem explored neighbor) then (
+            Hash_set.add explored neighbor;
+            Hashtbl.set distance ~key:neighbor
+              ~data:(Hashtbl.find_exn distance next + 1);
+            Queue.enqueue queue neighbor))
+        (List.filter
+           ~f:(can_jump_p3 t rotation_map)
+           (searchstate_neighbors t rotation_map next))
+  done;
+  !result
