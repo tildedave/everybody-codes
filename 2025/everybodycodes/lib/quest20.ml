@@ -367,23 +367,19 @@ let part3 l =
   Queue.enqueue queue start;
   Hashtbl.set distance ~key:start ~data:0;
   Hash_set.add explored start;
-  let loop_done = ref false in
-  let result = ref 0 in
-  while (not (Queue.is_empty queue)) && not !loop_done do
+  while not (Queue.is_empty queue) do
     let next = Queue.dequeue_exn queue in
-    if equal_triangle_coord (fst next) goal then (
-      loop_done := true;
-      result := Hashtbl.find_exn distance next)
-    else
-      List.iter
-        ~f:(fun neighbor ->
-          if not (Hash_set.mem explored neighbor) then (
-            Hash_set.add explored neighbor;
-            Hashtbl.set distance ~key:neighbor
-              ~data:(Hashtbl.find_exn distance next + 1);
-            Queue.enqueue queue neighbor))
-        (List.filter
-           ~f:(can_jump_p3 t rotation_map)
-           (searchstate_neighbors t rotation_map next))
+    List.iter
+      ~f:(fun neighbor ->
+        if not (Hash_set.mem explored neighbor) then (
+          Hash_set.add explored neighbor;
+          Hashtbl.set distance ~key:neighbor
+            ~data:(Hashtbl.find_exn distance next + 1);
+          Queue.enqueue queue neighbor))
+      (List.filter
+         ~f:(can_jump_p3 t rotation_map)
+         (searchstate_neighbors t rotation_map next))
   done;
-  !result
+  List.init 3 ~f:(fun s -> (goal, s))
+  |> List.filter_map ~f:(Hashtbl.find distance)
+  |> List.min_elt ~compare |> Option.value_exn
