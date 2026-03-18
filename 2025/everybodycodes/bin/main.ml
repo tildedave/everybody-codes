@@ -96,4 +96,5 @@ Stdio.print_endline
    | "story2-quest3", "1" -> Int.to_string @@ Story2.quest3part1 lines
    | "story2-quest3", "2" -> Story2.quest3part2 lines
    | "story2-quest3", "3" -> Int.to_string @@ Story2.quest3part3 lines
+   | "story3-quest1", "1" -> Int.to_string @@ Story3.quest1part1 lines
    | _ -> failwith "invalid argument")
