@@ -180,26 +180,27 @@ type direction = Up | Right | Left | Down
 
 let dir_seq = Sequence.cycle_list_exn [ Up; Right; Down; Left ]
 
-let rec walk (x, y) finish seen dirs n =
-  if equal_tuple (x, y) finish then n
-  else
-    let next_dir, rest_dirs =
-      (Sequence.hd_exn dirs, Sequence.tl_eagerly_exn dirs)
-    in
-    let dx, dy =
-      match next_dir with
-      | Up -> (0, -1)
-      | Down -> (0, 1)
-      | Left -> (-1, 0)
-      | Right -> (1, 0)
-    in
-    let next = (x + dx, y + dy) in
-    if Set.mem seen next then walk (x, y) finish seen rest_dirs n
-    else walk next finish (Set.add seen (x, y)) rest_dirs (n + 1)
+let walk (x, y) dir =
+  match dir with
+  | Up -> (x, y - 1)
+  | Down -> (x, y + 1)
+  | Left -> (x - 1, y)
+  | Right -> (x + 1, y)
 
 let quest2part1 lines =
   let start, finish = positions lines in
-  walk start finish (Set.empty (module IntPair_Comparator)) dir_seq 0
+  Sequence.unfold
+    ~init:(start, Set.empty (module IntPair_Comparator), dir_seq)
+    ~f:(fun (curr, seen, dirs) ->
+      if equal_tuple curr finish then None
+      else
+        let next_dir, rest_dirs =
+          (Sequence.hd_exn dirs, Sequence.tl_eagerly_exn dirs)
+        in
+        let next = walk curr next_dir in
+        if Set.mem seen next then Some (0, (curr, seen, rest_dirs))
+        else Some (1, (next, Set.add seen curr, rest_dirs)))
+  |> Sequence.fold ~init:0 ~f:( + )
 
 let%test_unit "quest2part1" =
   [%test_eq: int]
