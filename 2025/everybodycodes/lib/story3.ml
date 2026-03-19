@@ -1,3 +1,5 @@
+[@@@ocaml.warning "-32"]
+
 open Base
 open Util
 
@@ -176,7 +178,7 @@ let positions lines =
   ( Option.value_exn (grid_find ~f:(equal_char '@') grid),
     Option.value_exn (grid_find ~f:(equal_char '#') grid) )
 
-type direction = Up | Right | Left | Down
+type direction = Up | Right | Left | Down [@@deriving sexp, compare, show]
 
 let dir_seq = Sequence.cycle_list_exn [ Up; Right; Down; Left ]
 
@@ -215,3 +217,80 @@ let%test_unit "quest2part1" =
          ".......";
        ])
     12
+
+let neighbors coord = List.map ~f:(walk coord) [ Up; Down; Left; Right ]
+let is_surrounded s c = List.for_all (neighbors c) ~f:(Set.mem s)
+
+let%test_unit "neighbors" =
+  [%test_eq: (int * int) list]
+    [ (0, -1); (0, 1); (-1, 0); (1, 0) ]
+    (neighbors (0, 0))
+
+let%test_unit "is_surrounded" =
+  [%test_eq: bool] true
+    (is_surrounded
+       (Set.of_list
+          (module IntPair_Comparator)
+          [ (0, -1); (0, 1); (-1, 0); (1, 0) ])
+       (0, 0))
+
+let fill_spot s coord =
+  List.fold (neighbors coord) ~init:(Set.add s coord) ~f:(fun s c ->
+      if Set.mem s c then s else if is_surrounded s c then Set.add s c else s)
+
+let show_sound ~curr ~finish sound =
+  let xs, ys =
+    (List.map ~f:fst (Set.to_list sound), List.map ~f:snd (Set.to_list sound))
+  in
+  let xmin = List.fold xs ~init:Int.max_value ~f:min in
+  let xmax = List.fold xs ~init:Int.min_value ~f:max in
+  let ymin = List.fold ys ~init:Int.max_value ~f:min in
+  let ymax = List.fold ys ~init:Int.min_value ~f:max in
+  let result = Buffer.create 0 in
+  for y = ymin - 3 to ymax + 3 do
+    for x = xmin - 3 to xmax + 3 do
+      Buffer.add_char result
+        (if equal_tuple curr (x, y) then '@'
+         else if equal_tuple finish (x, y) then '#'
+         else if Set.mem sound (x, y) then '+'
+         else '.')
+    done;
+    Buffer.add_char result '\n'
+  done;
+  Buffer.contents result
+
+let quest2part2 lines =
+  let start, finish = positions lines in
+  Sequence.unfold
+    ~init:
+      ( start,
+        Set.add (Set.add (Set.empty (module IntPair_Comparator)) start) finish,
+        dir_seq )
+    ~f:(fun (curr, sound, dirs) ->
+      (* Stdio.printf "%s %s\n%s\n" (show_tuple curr)
+         (show_direction (Sequence.hd_exn dirs))
+         (show_sound ~curr ~finish sound); *)
+      if is_surrounded sound finish then None
+      else
+        let next_dir, rest_dirs =
+          (Sequence.hd_exn dirs, Sequence.tl_eagerly_exn dirs)
+        in
+        let next = walk curr next_dir in
+        if Set.mem sound next || equal_tuple next finish then
+          Some (0, (curr, sound, rest_dirs))
+        else Some (1, (next, fill_spot sound next, rest_dirs)))
+  |> Sequence.fold ~init:0 ~f:( + )
+
+let%test_unit "quest2part2" =
+  [%test_eq: int]
+    (quest2part2
+       [
+         ".......";
+         ".......";
+         ".......";
+         ".#.@...";
+         ".......";
+         ".......";
+         ".......";
+       ])
+    47
