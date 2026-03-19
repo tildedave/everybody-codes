@@ -1,4 +1,5 @@
 open Base
+open Util
 
 let to_binary s =
   String.fold s ~init:0 ~f:(fun n ch ->
@@ -169,3 +170,47 @@ let%test_unit "quest1part3" =
          "80219:rRRrRR GGGggg BBbbbb SssSSs";
        ])
     292320
+
+let positions lines =
+  let grid = to_grid lines in
+  ( Option.value_exn (grid_find ~f:(equal_char '@') grid),
+    Option.value_exn (grid_find ~f:(equal_char '#') grid) )
+
+type direction = Up | Right | Left | Down
+
+let dir_seq = Sequence.cycle_list_exn [ Up; Right; Down; Left ]
+
+let rec walk (x, y) finish seen dirs n =
+  if equal_tuple (x, y) finish then n
+  else
+    let next_dir, rest_dirs =
+      (Sequence.hd_exn dirs, Sequence.tl_eagerly_exn dirs)
+    in
+    let dx, dy =
+      match next_dir with
+      | Up -> (0, -1)
+      | Down -> (0, 1)
+      | Left -> (-1, 0)
+      | Right -> (1, 0)
+    in
+    let next = (x + dx, y + dy) in
+    if Set.mem seen next then walk (x, y) finish seen rest_dirs n
+    else walk next finish (Set.add seen (x, y)) rest_dirs (n + 1)
+
+let quest2part1 lines =
+  let start, finish = positions lines in
+  walk start finish (Set.empty (module IntPair_Comparator)) dir_seq 0
+
+let%test_unit "quest2part1" =
+  [%test_eq: int]
+    (quest2part1
+       [
+         ".......";
+         ".......";
+         ".......";
+         ".#.@...";
+         ".......";
+         ".......";
+         ".......";
+       ])
+    12
