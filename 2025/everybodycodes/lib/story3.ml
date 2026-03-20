@@ -335,7 +335,7 @@ let fill_spot sound coord =
       if Set.mem s.coords c then s
       else
         match flood_fill s c with
-        | Some coords -> Set.fold ~init:sound ~f:add_sound coords
+        | Some coords -> Set.fold ~init:s ~f:add_sound coords
         | None -> s)
 
 let show_sound ~curr ~finish_set sound =
@@ -363,8 +363,8 @@ let propagate_sound directions lines =
   in
   Sequence.unfold ~init:(start, sound, vocal_bones_original, directions)
     ~f:(fun (curr, sound, vocal_bones, dirs) ->
-      Stdio.printf "%s\n"
-        (show_sound sound ~curr ~finish_set:vocal_bones_original);
+      (* Stdio.printf "%s\n"
+         (show_sound sound ~curr ~finish_set:vocal_bones_original); *)
       if Set.is_empty vocal_bones then
         (* Stdio.printf "%s\n" (show_sound sound ~curr ~finish_set); *)
         None
