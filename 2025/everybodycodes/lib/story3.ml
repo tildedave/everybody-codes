@@ -423,3 +423,149 @@ let%test_unit "quest2part3" =
          "##......#######";
        ])
     239
+
+let parse_shape s =
+  match String.split ~on:' ' s with
+  | [ color; shape ] -> (color, shape)
+  | _ -> failwith "impossible"
+
+let node_re =
+  Re.Perl.re
+    {|id=(\d+), plug=([A-Z]+ [A-Z]+), leftSocket=([A-Z]+ [A-Z]+), rightSocket=([A-Z]+ [A-Z]+), data=(.*)|}
+  |> Re.compile
+
+type pluggable = string * string [@@deriving equal, show, compare, sexp]
+
+type node = {
+  id : int;
+  plug : pluggable;
+  left_socket : pluggable;
+  right_socket : pluggable;
+  data : string;
+}
+[@@deriving show, compare, sexp]
+
+let parse_node s =
+  match Re.exec_opt node_re s with
+  | Some groups ->
+      {
+        id = Int.of_string @@ Re.Group.get groups 1;
+        plug = parse_shape @@ Re.Group.get groups 2;
+        left_socket = parse_shape @@ Re.Group.get groups 3;
+        right_socket = parse_shape @@ Re.Group.get groups 4;
+        data = Re.Group.get groups 5;
+      }
+  | None -> failwith "invalid input"
+
+let%test_unit "parse_node" =
+  [%test_eq: node]
+    {
+      id = 1;
+      plug = ("BLUE", "HEXAGON");
+      left_socket = ("GREEN", "CIRCLE");
+      right_socket = ("BLUE", "PENTAGON");
+      data = "?";
+    }
+    (parse_node
+       "id=1, plug=BLUE HEXAGON, leftSocket=GREEN CIRCLE, rightSocket=BLUE \
+        PENTAGON, data=?")
+
+type tree = Node of node * tree option * tree option
+[@@deriving show, compare, sexp]
+
+let empty_tree node = Node (node, None, None)
+
+type bond_type = Strong | Weak
+
+let equal_pluggable_bond (c1, s1) (c2, s2) ~bond_type =
+  match bond_type with
+  | Strong -> equal_pluggable (c1, s1) (c2, s2)
+  | Weak -> equal_string c1 c2 || equal_string s1 s2
+
+let rec insert_node node (Node (curr, left, right)) ~bond_type =
+  match
+    match left with
+    | None ->
+        if equal_pluggable_bond node.plug curr.left_socket ~bond_type then
+          Some (empty_tree node)
+        else None
+    | Some left' -> insert_node node left' ~bond_type
+  with
+  | Some new_left -> Some (Node (curr, Some new_left, right))
+  | None -> (
+      match
+        match right with
+        | None ->
+            if equal_pluggable_bond node.plug curr.right_socket ~bond_type then
+              Some (empty_tree node)
+            else None
+        | Some right' -> insert_node node right' ~bond_type
+      with
+      | Some new_right -> Some (Node (curr, left, Some new_right))
+      | None -> None)
+
+let build_tree lines ~bond_type =
+  let nodes = List.map ~f:parse_node lines in
+  List.fold
+    ~init:(empty_tree @@ List.hd_exn nodes)
+    ~f:(fun tree node -> Option.value_exn @@ insert_node node tree ~bond_type)
+    (List.tl_exn nodes)
+
+let integers = Sequence.unfold ~init:1 ~f:(fun n -> Some (n, n + 1))
+
+let rec traverse (Node (curr, left, right)) =
+  Sequence.concat
+  @@ Sequence.of_list
+       [
+         (match left with
+         | None -> Sequence.empty
+         | Some left' -> traverse left');
+         Sequence.singleton curr;
+         (match right with
+         | None -> Sequence.empty
+         | Some right' -> traverse right');
+       ]
+
+let quest3part1 lines =
+  let tree = build_tree lines ~bond_type:Strong in
+  Sequence.fold ~init:0
+    ~f:(fun n (node, i) -> n + (node.id * i))
+    (Sequence.zip (traverse tree) integers)
+
+let%test_unit "quest3part1" =
+  [%test_eq: int] 43
+    (quest3part1
+       [
+         "id=1, plug=BLUE HEXAGON, leftSocket=GREEN CIRCLE, rightSocket=BLUE \
+          PENTAGON, data=?";
+         "id=2, plug=GREEN CIRCLE, leftSocket=BLUE HEXAGON, rightSocket=BLUE \
+          CIRCLE, data=?";
+         "id=3, plug=BLUE PENTAGON, leftSocket=BLUE CIRCLE, rightSocket=BLUE \
+          CIRCLE, data=?";
+         "id=4, plug=BLUE CIRCLE, leftSocket=RED HEXAGON, rightSocket=BLUE \
+          HEXAGON, data=?";
+         "id=5, plug=RED HEXAGON, leftSocket=GREEN CIRCLE, rightSocket=RED \
+          HEXAGON, data=?";
+       ])
+
+let quest3part2 lines =
+  let tree = build_tree lines ~bond_type:Weak in
+  Sequence.fold ~init:0
+    ~f:(fun n (node, i) -> n + (node.id * i))
+    (Sequence.zip (traverse tree) integers)
+
+let%test_unit "quest3part2" =
+  [%test_eq: int] 50
+    (quest3part2
+       [
+         "id=1, plug=RED TRIANGLE, leftSocket=RED TRIANGLE, rightSocket=RED \
+          TRIANGLE, data=?";
+         "id=2, plug=GREEN TRIANGLE, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=3, plug=BLUE PENTAGON, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=4, plug=RED TRIANGLE, leftSocket=BLUE PENTAGON, rightSocket=GREEN \
+          PENTAGON, data=?";
+         "id=5, plug=RED PENTAGON, leftSocket=GREEN CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+       ])
