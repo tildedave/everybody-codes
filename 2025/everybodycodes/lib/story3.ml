@@ -278,12 +278,61 @@ let flood_fill sound start =
   in
   helper [ start ] (Set.empty (module IntPair_Comparator)) sound.coords
 
+let%test_unit "flood_fill (filled example)" =
+  [%test_eq: (int * int) list option]
+    (Some [ (-1, 1); (0, 1); (1, 1) ])
+    (Option.map ~f:Set.to_list
+       (flood_fill
+          {
+            coords =
+              Set.of_list
+                (module IntPair_Comparator)
+                [
+                  (-2, 0);
+                  (-1, 0);
+                  (0, 0);
+                  (1, 0);
+                  (2, 0);
+                  (-2, 2);
+                  (-1, 2);
+                  (0, 2);
+                  (1, 2);
+                  (2, 2);
+                  (-2, 1);
+                  (2, 1);
+                ];
+            bounds = ((-3, -3), (3, 3));
+          }
+          (0, 1)))
+
+let%test_unit "flood_fill (unfilled example)" =
+  [%test_eq: (int * int) list option] None
+    (Option.map ~f:Set.to_list
+       (flood_fill
+          {
+            coords =
+              Set.of_list
+                (module IntPair_Comparator)
+                [
+                  (-2, 0);
+                  (0, 0);
+                  (1, 0);
+                  (2, 0);
+                  (-2, 2);
+                  (-1, 2);
+                  (0, 2);
+                  (1, 2);
+                  (2, 2);
+                  (-2, 1);
+                  (2, 1);
+                ];
+            bounds = ((-3, -3), (3, 3));
+          }
+          (0, 1)))
+
 let fill_spot sound coord =
-  List.fold (neighbors coord)
-    ~init:{ sound with coords = Set.add sound.coords coord }
-    ~f:(fun s c ->
+  List.fold (neighbors coord) ~init:(add_sound sound coord) ~f:(fun s c ->
       if Set.mem s.coords c then s
-      else if is_surrounded s.coords c then add_sound s c
       else
         match flood_fill s c with
         | Some coords -> Set.fold ~init:sound ~f:add_sound coords
@@ -304,16 +353,19 @@ let show_sound ~curr ~finish_set sound =
   done;
   Buffer.contents result
 
+let can_escape s c = Option.is_none (flood_fill s c)
+
 let propagate_sound directions lines =
-  let start, finish_set = positions lines in
+  let start, vocal_bones_original = positions lines in
   let sound =
-    let s = Set.add finish_set start in
+    let s = Set.add vocal_bones_original start in
     { coords = s; bounds = set_bounds s }
   in
-  Sequence.unfold ~init:(start, sound, directions)
-    ~f:(fun (curr, sound, dirs) ->
-      (* Stdio.printf "%s\n" (show_sound sound ~curr ~finish_set); *)
-      if Set.for_all finish_set ~f:(is_surrounded sound.coords) then
+  Sequence.unfold ~init:(start, sound, vocal_bones_original, directions)
+    ~f:(fun (curr, sound, vocal_bones, dirs) ->
+      Stdio.printf "%s\n"
+        (show_sound sound ~curr ~finish_set:vocal_bones_original);
+      if Set.is_empty vocal_bones then
         (* Stdio.printf "%s\n" (show_sound sound ~curr ~finish_set); *)
         None
       else
@@ -321,9 +373,16 @@ let propagate_sound directions lines =
           (Sequence.hd_exn dirs, Sequence.tl_eagerly_exn dirs)
         in
         let next = walk curr next_dir in
-        if Set.mem sound.coords next || Set.mem finish_set next then
-          Some (0, (curr, sound, rest_dirs))
-        else Some (1, (next, fill_spot sound next, rest_dirs)))
+        if Set.mem sound.coords next then
+          Some (0, (curr, sound, vocal_bones, rest_dirs))
+        else
+          let next_sound = fill_spot sound next in
+          Some
+            ( 1,
+              ( next,
+                next_sound,
+                Set.filter vocal_bones ~f:(can_escape next_sound),
+                rest_dirs ) ))
   |> Sequence.fold ~init:0 ~f:( + )
 
 let quest2part2 = propagate_sound dir_seq
