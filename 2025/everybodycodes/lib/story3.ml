@@ -477,10 +477,13 @@ let empty_tree node = Node (node, None, None)
 
 type bond_type = Strong | Weak
 
-let equal_pluggable_bond (c1, s1) (c2, s2) ~bond_type =
+let is_strong_bond p1 p2 = equal_pluggable p1 p2
+let is_weak_bond (c1, s1) (c2, s2) = equal_string c1 c2 || equal_string s1 s2
+
+let equal_pluggable_bond p1 p2 ~bond_type =
   match bond_type with
-  | Strong -> equal_pluggable (c1, s1) (c2, s2)
-  | Weak -> equal_string c1 c2 || equal_string s1 s2
+  | Strong -> is_strong_bond p1 p2
+  | Weak -> is_weak_bond p1 p2
 
 let rec insert_node node (Node (curr, left, right)) ~bond_type =
   match
@@ -567,5 +570,100 @@ let%test_unit "quest3part2" =
          "id=4, plug=RED TRIANGLE, leftSocket=BLUE PENTAGON, rightSocket=GREEN \
           PENTAGON, data=?";
          "id=5, plug=RED PENTAGON, leftSocket=GREEN CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+       ])
+
+let tree_plug (Node (curr, _, _)) = curr.plug
+
+let rec insert_node_p3 tree (Node (curr, left, right)) =
+  let new_left, next_tree =
+    match left with
+    | None ->
+        if is_weak_bond (tree_plug tree) curr.left_socket then (Some tree, None)
+        else (None, Some tree)
+    | Some left' ->
+        Stdio.printf
+          "checking existing bond %s\n\nleft tree plug %s\nsocket %s\n"
+          (show_tree tree)
+          (show_pluggable (tree_plug left'))
+          (show_pluggable curr.left_socket);
+        if
+          is_weak_bond (tree_plug left') curr.left_socket
+          && is_strong_bond (tree_plug tree) curr.left_socket
+        then (
+          Stdio.printf "breaking left bond %s into %s!!\n" (show_tree tree)
+            (show_tree left');
+          (Some tree, Some left'))
+        else insert_node_p3 tree left'
+  in
+  match next_tree with
+  | None -> (Some (Node (curr, new_left, right)), None)
+  | Some tree' ->
+      let new_right, next_tree' =
+        match right with
+        | None ->
+            if is_weak_bond (tree_plug tree') curr.right_socket then
+              (Some tree', None)
+            else (None, Some tree)
+        | Some right' ->
+            if
+              is_weak_bond (tree_plug right') curr.right_socket
+              && is_strong_bond (tree_plug tree') curr.right_socket
+            then (Some tree', Some right')
+            else insert_node_p3 tree' right'
+      in
+      (Some (Node (curr, new_left, new_right)), next_tree')
+
+let build_tree_p3 lines =
+  let nodes = List.map ~f:parse_node lines in
+  List.fold
+    ~init:(empty_tree @@ List.hd_exn nodes)
+    ~f:(fun tree node ->
+      Stdio.printf "\n\nINSERTING BEGINS node %s (plug %s)\n" (show_node node)
+        (show_pluggable node.plug);
+      Stdio.printf "\n\nCURRENT TREE %s\n" (show_tree tree);
+      let next_tree, result = insert_node_p3 (empty_tree node) tree in
+      (* Stdio.printf "NEXT TREE %s\n" (show_tree @@ Option.value_exn next_tree); *)
+      assert (Option.is_none result);
+      Option.value_exn next_tree)
+    (List.tl_exn nodes)
+
+let quest3part3 lines =
+  let tree = build_tree_p3 lines in
+  Sequence.fold ~init:0
+    ~f:(fun n (node, i) -> n + (node.id * i))
+    (Sequence.zip (traverse tree) integers)
+
+let%test_unit "quest3part3" =
+  [%test_eq: int] 38
+    (quest3part3
+       [
+         "id=1, plug=RED TRIANGLE, leftSocket=RED TRIANGLE, rightSocket=RED \
+          TRIANGLE, data=?";
+         "id=2, plug=GREEN TRIANGLE, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=3, plug=BLUE PENTAGON, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=4, plug=RED TRIANGLE, leftSocket=BLUE PENTAGON, rightSocket=GREEN \
+          PENTAGON, data=?";
+         "id=5, plug=RED PENTAGON, leftSocket=GREEN CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+       ])
+
+let%test_unit "quest3part3 (second)" =
+  [%test_eq: int] 60
+    (quest3part3
+       [
+         "id=1, plug=RED TRIANGLE, leftSocket=BLUE TRIANGLE, rightSocket=GREEN \
+          TRIANGLE, data=?";
+         "id=2, plug=GREEN TRIANGLE, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=3, plug=BLUE PENTAGON, leftSocket=BLUE CIRCLE, rightSocket=GREEN \
+          CIRCLE, data=?";
+         "id=4, plug=RED TRIANGLE, leftSocket=BLUE PENTAGON, rightSocket=GREEN \
+          PENTAGON, data=?";
+         "id=5, plug=BLUE TRIANGLE, leftSocket=GREEN CIRCLE, rightSocket=RED \
+          CIRCLE, data=?";
+         "id=6, plug=BLUE TRIANGLE, leftSocket=GREEN CIRCLE, rightSocket=RED \
           CIRCLE, data=?";
        ])
