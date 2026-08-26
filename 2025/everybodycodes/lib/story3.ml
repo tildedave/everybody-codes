@@ -582,50 +582,48 @@ let rec insert_node_p3 tree (Node (curr, left, right)) =
         if is_weak_bond (tree_plug tree) curr.left_socket then (Some tree, None)
         else (None, Some tree)
     | Some left' ->
-        Stdio.printf
-          "checking existing bond %s\n\nleft tree plug %s\nsocket %s\n"
-          (show_tree tree)
-          (show_pluggable (tree_plug left'))
-          (show_pluggable curr.left_socket);
         if
-          is_weak_bond (tree_plug left') curr.left_socket
+          (not (is_strong_bond (tree_plug left') curr.left_socket))
           && is_strong_bond (tree_plug tree) curr.left_socket
-        then (
-          Stdio.printf "breaking left bond %s into %s!!\n" (show_tree tree)
-            (show_tree left');
-          (Some tree, Some left'))
+        then (Some tree, Some left')
         else insert_node_p3 tree left'
   in
   match next_tree with
   | None -> (Some (Node (curr, new_left, right)), None)
-  | Some tree' ->
-      let new_right, next_tree' =
+  | Some tree ->
+      let new_right, next_tree =
         match right with
         | None ->
-            if is_weak_bond (tree_plug tree') curr.right_socket then
-              (Some tree', None)
+            if is_weak_bond (tree_plug tree) curr.right_socket then
+              (Some tree, None)
             else (None, Some tree)
         | Some right' ->
             if
-              is_weak_bond (tree_plug right') curr.right_socket
-              && is_strong_bond (tree_plug tree') curr.right_socket
-            then (Some tree', Some right')
-            else insert_node_p3 tree' right'
+              (not (is_strong_bond (tree_plug right') curr.right_socket))
+              && is_strong_bond (tree_plug tree) curr.right_socket
+            then (Some tree, Some right')
+            else insert_node_p3 tree right'
       in
-      (Some (Node (curr, new_left, new_right)), next_tree')
+      (Some (Node (curr, new_left, new_right)), next_tree)
 
 let build_tree_p3 lines =
   let nodes = List.map ~f:parse_node lines in
   List.fold
     ~init:(empty_tree @@ List.hd_exn nodes)
     ~f:(fun tree node ->
-      Stdio.printf "\n\nINSERTING BEGINS node %s (plug %s)\n" (show_node node)
-        (show_pluggable node.plug);
-      Stdio.printf "\n\nCURRENT TREE %s\n" (show_tree tree);
-      let next_tree, result = insert_node_p3 (empty_tree node) tree in
-      (* Stdio.printf "NEXT TREE %s\n" (show_tree @@ Option.value_exn next_tree); *)
-      assert (Option.is_none result);
-      Option.value_exn next_tree)
+      let rec helper tree_to_insert tree =
+        (* Stdio.printf "INSERTING:\n%s\n\nINTO:\n%s\n" (show_tree tree_to_insert)
+           (show_tree tree); *)
+        let next_tree, remaining_insert = insert_node_p3 tree_to_insert tree in
+        if Option.is_some remaining_insert then
+          helper
+            (Option.value_exn remaining_insert)
+            (Option.value_exn next_tree)
+        else Option.value_exn next_tree
+      in
+      let result = helper (empty_tree node) tree in
+      (* Stdio.printf "RESULT:\n%s\n\n" (show_tree result); *)
+      result)
     (List.tl_exn nodes)
 
 let quest3part3 lines =
