@@ -106,16 +106,14 @@ let%test_unit "quest4part2 (given)" =
 *)
 
 let avoids_crossings (x, y) arcs =
-  if not (x < y) then assert false (* should do this better *)
-  else
-    arcs
-    |> List.filter ~f:(fun (h, t) ->
-           let h', t' = (min h t, max h t) in
-           if h' < x && x < y && y < t' then false (* does not cross *)
-           else if x < h' && h' < t' && t' < y then false
-             (* also does not cross *)
-           else (h' < x && x < t') || (h' < y && y < t'))
-    |> List.is_empty
+  assert (x < y);
+  arcs
+  |> List.filter ~f:(fun (h, t) ->
+         assert (h < t);
+         if h < x && x < y && y < t then false (* does not cross *)
+         else if x < h && h < t && t < y then false (* also does not cross *)
+         else (h < x && x < t) || (h < y && y < t))
+  |> List.is_empty
 
 let run_sequence_part3 l =
   l
