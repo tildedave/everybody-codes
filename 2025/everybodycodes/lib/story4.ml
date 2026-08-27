@@ -212,7 +212,7 @@ let parse_problem lines =
     a_beacon = parse_coords (List.nth_exn lines 1);
     b_beacon = parse_coords (List.nth_exn lines 2);
     c_beacon = parse_coords (List.nth_exn lines 3);
-    moves = parse_moves (List.nth_exn lines 4);
+    moves = Option.value_map ~f:parse_moves ~default:[] (List.nth lines 4);
   }
 
 let%test_unit "parse_problem (given)" =
@@ -252,14 +252,89 @@ let run_launch problem =
            | _ -> failwith "invalid input"
          in
          (next_coord, Set.add seen next_coord))
-  |> snd |> Set.length
+  |> snd
 
-let%test_unit "run_launch (given)" =
+let quest2part1 l = l |> parse_problem |> run_launch |> Set.length
+
+let%test_unit "quest2part1 (given)" =
   [%test_eq: int] 8
-    (run_launch
-       (parse_problem
-          [
-            "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA";
-          ]))
+    ([ "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA" ]
+    |> quest2part1)
 
-let quest2part1 l = l |> parse_problem |> run_launch
+let neighbor_set (x, y) =
+  Set.of_list
+    (module IntPair_Comparator)
+    [ (x + 1, y); (x - 1, y); (x, y + 1); (x, y - 1) ]
+
+let firefly_count lit_squares =
+  let ff_squares =
+    Set.fold
+      ~init:(Set.empty (module IntPair_Comparator))
+      ~f:(fun acc coord -> Set.union acc (neighbor_set coord))
+      lit_squares
+  in
+  Set.length @@ Set.diff ff_squares lit_squares
+
+let quest2part2 l = l |> parse_problem |> run_launch |> firefly_count
+
+let%test_unit "quest2part2 (given, 1)" =
+  [%test_eq: int] 25
+    ([ "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA" ]
+    |> quest2part2)
+
+let%test_unit "quest2part2 (given, 2)" =
+  [%test_eq: int] 46
+    ([
+       "START=[5,0]";
+       "A=[0,0]";
+       "B=[10,0]";
+       "C=[5,10]";
+       "MOVES=BABCAABBCABCCCBBABCCCAAACABABCBCBBCAABBABBCACCBAABCBCBBBCBBBBBCCCAACAACB";
+     ]
+    |> quest2part2)
+
+(* part 3 seems to just be flood fill *)
+(* loop with visited + unvisited sets *)
+(* then apply fireflies on top of those illuminated squares *)
+
+let rec run_launch_flood_fill problem unvisited_set visited_set =
+  match Set.choose unvisited_set with
+  | None -> visited_set
+  | Some coord ->
+      run_launch_flood_fill problem
+        (List.fold
+           ~init:(Set.remove unvisited_set coord)
+           ~f:(fun unvisited_set next ->
+             (* Stdio.printf "should I visit %s?\n" (show_tuple next); *)
+             if Set.mem visited_set next then unvisited_set
+             else Set.add unvisited_set next)
+           [
+             halfway_to coord problem.a_beacon;
+             halfway_to coord problem.b_beacon;
+             halfway_to coord problem.c_beacon;
+           ])
+        (Set.add visited_set coord)
+
+let parse_problem_part3 lines =
+  {
+    start = parse_coords (List.nth_exn lines 0);
+    a_beacon = parse_coords (List.nth_exn lines 1);
+    b_beacon = parse_coords (List.nth_exn lines 2);
+    c_beacon = parse_coords (List.nth_exn lines 3);
+    moves = [];
+  }
+
+let quest2part3 l =
+  let problem = parse_problem_part3 l in
+  run_launch_flood_fill problem
+    (Set.add (Set.empty (module IntPair_Comparator)) problem.start)
+    (Set.empty (module IntPair_Comparator))
+  |> firefly_count
+
+let%test_unit "quest2part3 (given, 1)" =
+  [%test_eq: int] 42
+    ([ "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]" ] |> quest2part3)
+
+let%test_unit "quest2part3 (given, 2)" =
+  [%test_eq: int] 432
+    ([ "START=[0,0]"; "A=[0,0]"; "B=[80,15]"; "C=[5,30]" ] |> quest2part3)
