@@ -315,17 +315,8 @@ let rec run_launch_flood_fill problem unvisited_set visited_set =
            ])
         (Set.add visited_set coord)
 
-let parse_problem_part3 lines =
-  {
-    start = parse_coords (List.nth_exn lines 0);
-    a_beacon = parse_coords (List.nth_exn lines 1);
-    b_beacon = parse_coords (List.nth_exn lines 2);
-    c_beacon = parse_coords (List.nth_exn lines 3);
-    moves = [];
-  }
-
 let quest2part3 l =
-  let problem = parse_problem_part3 l in
+  let problem = parse_problem l in
   run_launch_flood_fill problem
     (Set.add (Set.empty (module IntPair_Comparator)) problem.start)
     (Set.empty (module IntPair_Comparator))
