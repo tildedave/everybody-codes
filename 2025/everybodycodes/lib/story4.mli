@@ -2,6 +2,7 @@
 
 open Base
 
-val quest4part1: string list -> int
-val quest4part2: string list -> int
-val quest4part3: string list -> int
+val quest1part1: string list -> int
+val quest1part2: string list -> int
+val quest1part3: string list -> int
+val quest2part1: string list -> int

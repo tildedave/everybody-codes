@@ -1,4 +1,7 @@
+[@@@ocaml.warning "-32"]
+
 open Base
+open Util
 
 let parse_sequence s = List.map (String.split ~on:',' s) ~f:Int.of_string
 
@@ -27,23 +30,23 @@ let%test_unit "run_sequence (given 2)" =
     )
     45
 
-let quest4part1 lines =
+let quest1part1 lines =
   lines
   |> List.map ~f:(fun s -> run_sequence @@ parse_sequence s)
   |> List.fold ~f:( + ) ~init:0
 
-let%test_unit "quest4part1 (given)" =
+let%test_unit "quest1part1 (given)" =
   [%test_eq: int]
-    (quest4part1
+    (quest1part1
        [
          "1,2,3,4,5,6,7,8,9";
          "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30";
        ])
     66
 
-let%test_unit "quest4part1 (given 2)" =
+let%test_unit "quest1part1 (given 2)" =
   [%test_eq: int]
-    (quest4part1
+    (quest1part1
        [
          "1,1,1,1,1";
          "5,1,2,3,4,5,1,2,3,4";
@@ -77,14 +80,14 @@ let%test_unit "run_sequence_part2 (given 2)" =
     (run_sequence_part2 @@ parse_sequence "5,1,2,3,4,5,1,2,3,4")
     13
 
-let quest4part2 lines =
+let quest1part2 lines =
   lines
   |> List.map ~f:(fun s -> run_sequence_part2 @@ parse_sequence s)
   |> List.fold ~f:( + ) ~init:0
 
-let%test_unit "quest4part2 (given)" =
+let%test_unit "quest1part2 (given)" =
   [%test_eq: int]
-    (quest4part2
+    (quest1part2
        [
          "1,1,1,1,1";
          "5,1,2,3,4,5,1,2,3,4";
@@ -154,14 +157,14 @@ let%test_unit "run_sequence_part3 (given, 2)" =
     (run_sequence_part3 @@ parse_sequence "5,1,2,3,4,5,1,2,3,4")
     20
 
-let quest4part3 lines =
+let quest1part3 lines =
   lines
   |> List.map ~f:(fun s -> run_sequence_part3 @@ parse_sequence s)
   |> List.fold ~f:( + ) ~init:0
 
-let%test_unit "quest4part3 (given)" =
+let%test_unit "quest1part3 (given)" =
   [%test_eq: int]
-    (quest4part3
+    (quest1part3
        [
          "1,1,1,1,1";
          "5,1,2,3,4,5,1,2,3,4";
@@ -170,9 +173,9 @@ let%test_unit "quest4part3 (given)" =
        ])
     27
 
-let%test_unit "quest4part3 (given, part 2)" =
+let%test_unit "quest1part3 (given, part 2)" =
   [%test_eq: int]
-    (quest4part3
+    (quest1part3
        [
          "5,3,1,1";
          "5,3,1,1,5,1,1,3,4,8,1,1";
@@ -180,3 +183,83 @@ let%test_unit "quest4part3 (given, part 2)" =
          "10,9,9,8,8,7,7,6,6,5,5,4,4,3,3,2,2,1";
        ])
     35
+
+(* part 2 - parsing time *)
+
+let parse_coords s =
+  Stdlib.Scanf.sscanf
+    (List.nth_exn (String.split s ~on:'=') 1)
+    "[%d,%d]"
+    (fun x y -> (x, y))
+
+let parse_moves s = String.to_list @@ List.nth_exn (String.split s ~on:'=') 1
+
+let%test_unit "parse_coords (start)" =
+  [%test_eq: int * int] (5, 0) (parse_coords "START=[5,0]")
+
+type problem = {
+  start : int * int;
+  a_beacon : int * int;
+  b_beacon : int * int;
+  c_beacon : int * int;
+  moves : char list;
+}
+[@@deriving compare, sexp_of, show]
+
+let parse_problem lines =
+  {
+    start = parse_coords (List.nth_exn lines 0);
+    a_beacon = parse_coords (List.nth_exn lines 1);
+    b_beacon = parse_coords (List.nth_exn lines 2);
+    c_beacon = parse_coords (List.nth_exn lines 3);
+    moves = parse_moves (List.nth_exn lines 4);
+  }
+
+let%test_unit "parse_problem (given)" =
+  [%test_eq: problem]
+    {
+      start = (5, 0);
+      a_beacon = (0, 0);
+      b_beacon = (10, 0);
+      c_beacon = (5, 10);
+      moves = [ 'A'; 'B'; 'C'; 'C'; 'B'; 'A'; 'B'; 'C'; 'A' ];
+    }
+    (parse_problem
+       [ "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA" ])
+
+let halfway_to (cx, cy) (dx, dy) = ((cx + dx) / 2, (cy + dy) / 2)
+
+let%test_unit "halfway_to (given)" =
+  [%test_eq: int * int] (2, 0) (halfway_to (5, 0) (0, 0))
+
+let%test_unit "halfway_to (given 2)" =
+  [%test_eq: int * int] (7, 3) (halfway_to (5, 7) (10, 0))
+
+let run_launch problem =
+  problem.moves
+  |> List.fold
+       ~init:
+         ( problem.start,
+           Set.add (Set.empty (module IntPair_Comparator)) problem.start )
+       ~f:(fun (curr_coord, seen) next_beacon ->
+         let next_coord =
+           halfway_to curr_coord
+           @@
+           match next_beacon with
+           | 'A' -> problem.a_beacon
+           | 'B' -> problem.b_beacon
+           | 'C' -> problem.c_beacon
+           | _ -> failwith "invalid input"
+         in
+         (next_coord, Set.add seen next_coord))
+  |> snd |> Set.length
+
+let%test_unit "run_launch (given)" =
+  [%test_eq: int] 8
+    (run_launch
+       (parse_problem
+          [
+            "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA";
+          ]))
+
+let quest2part1 l = l |> parse_problem |> run_launch
