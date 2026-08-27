@@ -120,40 +120,33 @@ let avoids_crossings (x, y) arcs =
 let run_sequence_part3 l =
   l
   |> List.fold
-       ~init:(0, true, Set.empty (module Int), [], [])
-       ~f:(fun (n, is_bottom, seen, top_arcs, bottom_arcs) inc ->
-         let relevant_arcs = if is_bottom then bottom_arcs else top_arcs in
+       ~init:(0, Set.empty (module Int), [], [])
+       ~f:(fun (n, seen, arcs, other_arcs) inc ->
          let back_next = n - inc in
          if
            back_next > 0
            && (not (Set.mem seen back_next))
-           && avoids_crossings (back_next, n) relevant_arcs
+           && avoids_crossings (back_next, n) arcs
          then
            ( back_next,
-             not is_bottom,
              Set.add seen back_next,
-             (if is_bottom then top_arcs else (back_next, n) :: top_arcs),
-             if is_bottom then (back_next, n) :: bottom_arcs else bottom_arcs )
+             other_arcs,
+             (back_next, n) :: arcs )
          else
            let max_seen = Set.fold seen ~init:(n + inc) ~f:max in
            Sequence.unfold ~init:(n + inc) ~f:(fun n ->
                (* + 100 is a kludge, I want to end the process at some point *)
                if n > max_seen + 100 then None else Some (n, n + 1))
            |> Sequence.drop_while ~f:(fun n' ->
-                  Set.mem seen n'
-                  || not (avoids_crossings (n, n') relevant_arcs))
+                  Set.mem seen n' || not (avoids_crossings (n, n') arcs))
            |> Sequence.hd
-           |> Option.value_map
-                ~default:(n, is_bottom, seen, top_arcs, bottom_arcs)
+           |> Option.value_map ~default:(n, seen, arcs, other_arcs)
                 ~f:(fun forward_next ->
                   ( forward_next,
-                    not is_bottom,
                     Set.add seen forward_next,
-                    (if is_bottom then top_arcs
-                     else (n, forward_next) :: top_arcs),
-                    if is_bottom then (n, forward_next) :: bottom_arcs
-                    else bottom_arcs )))
-  |> fun (n, _, _, _, _) -> n
+                    other_arcs,
+                    (n, forward_next) :: arcs )))
+  |> fun (n, _, _, _) -> n
 
 let%test_unit "run_sequence_part3 (given)" =
   [%test_eq: int] (run_sequence_part3 @@ parse_sequence "1,1,1,1,1") 5
