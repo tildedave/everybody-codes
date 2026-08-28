@@ -197,7 +197,7 @@ let parse_moves s = String.to_list @@ List.nth_exn (String.split s ~on:'=') 1
 let%test_unit "parse_coords (start)" =
   [%test_eq: int * int] (5, 0) (parse_coords "START=[5,0]")
 
-type problem = {
+type part2problem = {
   start : int * int;
   a_beacon : int * int;
   b_beacon : int * int;
@@ -206,7 +206,7 @@ type problem = {
 }
 [@@deriving compare, sexp_of, show]
 
-let parse_problem lines =
+let parse_problem_part2 lines =
   {
     start = parse_coords (List.nth_exn lines 0);
     a_beacon = parse_coords (List.nth_exn lines 1);
@@ -215,8 +215,8 @@ let parse_problem lines =
     moves = Option.value_map ~f:parse_moves ~default:[] (List.nth lines 4);
   }
 
-let%test_unit "parse_problem (given)" =
-  [%test_eq: problem]
+let%test_unit "parse_problem_part2 (given)" =
+  [%test_eq: part2problem]
     {
       start = (5, 0);
       a_beacon = (0, 0);
@@ -224,7 +224,7 @@ let%test_unit "parse_problem (given)" =
       c_beacon = (5, 10);
       moves = [ 'A'; 'B'; 'C'; 'C'; 'B'; 'A'; 'B'; 'C'; 'A' ];
     }
-    (parse_problem
+    (parse_problem_part2
        [ "START=[5,0]"; "A=[0,0]"; "B=[10,0]"; "C=[5,10]"; "MOVES=ABCCBABCA" ])
 
 let halfway_to (cx, cy) (dx, dy) = ((cx + dx) / 2, (cy + dy) / 2)
@@ -254,7 +254,7 @@ let run_launch problem =
          (next_coord, Set.add seen next_coord))
   |> snd
 
-let quest2part1 l = l |> parse_problem |> run_launch |> Set.length
+let quest2part1 l = l |> parse_problem_part2 |> run_launch |> Set.length
 
 let%test_unit "quest2part1 (given)" =
   [%test_eq: int] 8
@@ -275,7 +275,7 @@ let firefly_count lit_squares =
   in
   Set.length @@ Set.diff ff_squares lit_squares
 
-let quest2part2 l = l |> parse_problem |> run_launch |> firefly_count
+let quest2part2 l = l |> parse_problem_part2 |> run_launch |> firefly_count
 
 let%test_unit "quest2part2 (given, 1)" =
   [%test_eq: int] 25
@@ -316,7 +316,7 @@ let rec run_launch_flood_fill problem unvisited_set visited_set =
         (Set.add visited_set coord)
 
 let quest2part3 l =
-  let problem = parse_problem l in
+  let problem = parse_problem_part2 l in
   run_launch_flood_fill problem
     (Set.add (Set.empty (module IntPair_Comparator)) problem.start)
     (Set.empty (module IntPair_Comparator))
@@ -329,3 +329,136 @@ let%test_unit "quest2part3 (given, 1)" =
 let%test_unit "quest2part3 (given, 2)" =
   [%test_eq: int] 432
     ([ "START=[0,0]"; "A=[0,0]"; "B=[80,15]"; "C=[5,30]" ] |> quest2part3)
+
+type part3problem = {
+  width : int;
+  height : int;
+  horizontal_offsets : int array;
+  vertical_offsets : int array;
+}
+[@@deriving compare, sexp_of, show]
+
+let stitch_sequence =
+  Sequence.unfold ~init:true ~f:(fun b -> Some ((if b then 1 else 0), not b))
+
+let stitches i offsets length =
+  let idx = i % Array.length offsets in
+  Sequence.take
+    (match offsets.(idx) with
+    | 0 -> stitch_sequence
+    | 1 -> Sequence.tl_eagerly_exn stitch_sequence
+    | _ -> failwith "invalid offset")
+    length
+  |> Sequence.to_array
+
+let%test_unit "stiches (1)" =
+  [%test_eq: int array] [| 0; 1; 0; 1; 0 |] (stitches 0 [| 1; 0; 0; 1; 1 |] 5)
+
+let%test_unit "stiches (2)" =
+  [%test_eq: int array] [| 1; 0; 1; 0; 1 |] (stitches 6 [| 1; 0; 0; 1; 1 |] 5)
+
+let vertical_stitches problem =
+  Array.init (problem.width + 1) ~f:(fun n ->
+      stitches n problem.vertical_offsets problem.height)
+
+let horizontal_stitches problem =
+  Array.init (problem.height + 1) ~f:(fun n ->
+      stitches n problem.horizontal_offsets problem.width)
+
+let%test_unit "horizontal stitches (1)" =
+  [%test_eq: int array array]
+    [|
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 1; 0; 1; 0; 1; 0; 1; 0; 1; 0 |];
+      [| 1; 0; 1; 0; 1; 0; 1; 0; 1; 0 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+    |]
+    (horizontal_stitches
+       {
+         height = 5;
+         width = 10;
+         horizontal_offsets = [| 1; 0; 0; 1; 1 |];
+         vertical_offsets = [| 1; 1; 0; 1; 1 |];
+       })
+
+let%test_unit "vertical stitches (1)" =
+  [%test_eq: int array array]
+    [|
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 1; 0; 1; 0; 1; 0; 1; 0; 1; 0 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+      [| 0; 1; 0; 1; 0; 1; 0; 1; 0; 1 |];
+    |]
+    (vertical_stitches
+       {
+         height = 10;
+         width = 5;
+         horizontal_offsets = [| 1; 0; 0; 1; 1 |];
+         vertical_offsets = [| 1; 1; 0; 1; 1 |];
+       })
+
+let is_stitched = equal_int 1
+
+let num_isolated problem =
+  let h_stitches, v_stitches =
+    (horizontal_stitches problem, vertical_stitches problem)
+  in
+  let answer = ref 0 in
+  for y = 0 to problem.height - 1 do
+    for x = 0 to problem.width - 1 do
+      if
+        List.for_all
+          [
+            h_stitches.(y).(x);
+            h_stitches.(y + 1).(x);
+            v_stitches.(x).(y);
+            v_stitches.(x + 1).(y);
+          ]
+          ~f:is_stitched
+      then answer := !answer + 1
+    done
+  done;
+  !answer
+
+let%test_unit "num_isolated" =
+  [%test_eq: int] 27
+    (num_isolated
+       {
+         height = 30;
+         width = 10;
+         horizontal_offsets = [| 1; 0; 0; 1; 1 |];
+         vertical_offsets = [| 1; 1; 0; 1; 1 |];
+       })
+
+let parse_problem_part3 lines =
+  let after_equals s = List.nth_exn (String.split s ~on:'=') 1 in
+  {
+    height = List.nth_exn lines 0 |> after_equals |> Int.of_string;
+    width = List.nth_exn lines 1 |> after_equals |> Int.of_string;
+    horizontal_offsets =
+      List.nth_exn lines 2 |> after_equals |> String.to_list
+      |> List.map ~f:(fun ch ->
+             match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
+      |> Array.of_list;
+    vertical_offsets =
+      List.nth_exn lines 3 |> after_equals |> String.to_list
+      |> List.map ~f:(fun ch ->
+             match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
+      |> Array.of_list;
+  }
+
+let quest3part1 l = num_isolated @@ parse_problem_part3 l
+
+let%test_unit "quest3part1" =
+  [%test_eq: int] 27
+    (quest3part1
+       [
+         "width=30";
+         "height=10";
+         "horizontal-offsets=10011";
+         "vertical-offsets=11011";
+       ])
