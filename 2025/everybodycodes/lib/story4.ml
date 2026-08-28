@@ -305,7 +305,6 @@ let rec run_launch_flood_fill problem unvisited_set visited_set =
         (List.fold
            ~init:(Set.remove unvisited_set coord)
            ~f:(fun unvisited_set next ->
-             (* Stdio.printf "should I visit %s?\n" (show_tuple next); *)
              if Set.mem visited_set next then unvisited_set
              else Set.add unvisited_set next)
            [
@@ -437,8 +436,8 @@ let%test_unit "num_isolated" =
 let parse_problem_part3 lines =
   let after_equals s = List.nth_exn (String.split s ~on:'=') 1 in
   {
-    height = List.nth_exn lines 0 |> after_equals |> Int.of_string;
-    width = List.nth_exn lines 1 |> after_equals |> Int.of_string;
+    width = List.nth_exn lines 0 |> after_equals |> Int.of_string;
+    height = List.nth_exn lines 1 |> after_equals |> Int.of_string;
     horizontal_offsets =
       List.nth_exn lines 2 |> after_equals |> String.to_list
       |> List.map ~f:(fun ch ->
