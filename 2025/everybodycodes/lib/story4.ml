@@ -533,9 +533,7 @@ let isolated_point_counts problem =
            else if Map.mem m coord then m
            else (
              current_region := !current_region + 1;
-             Stdio.printf
-               "flood fill from %s for region %d - if region is more than 2 \
-                this is a bug\n"
+             Stdio.printf "flood fill from %s for region %d\n"
                (show_tuple coord) !current_region;
              Set.fold ~init:m
                ~f:(fun m coord ->
@@ -544,6 +542,18 @@ let isolated_point_counts problem =
                   (Set.singleton (module IntPair_Comparator) coord)
                   empty_coord_set ~h_stitches ~v_stitches)))
   in
+  let coord_mapping_with_isolated =
+    all_coords
+    |> List.fold ~init:coord_mapping ~f:(fun m coord ->
+           if is_isolated coord ~h_stitches ~v_stitches then
+             let surrounding_coord =
+               any_neighbor_of_isolated_point coord problem
+             in
+             Map.add_exn m ~key:coord ~data:(Map.find_exn m surrounding_coord)
+           else m)
+  in
+  (* ok so we've assigned every coord a "region" now, but we haven't painted
+     the regions the two different colors *)
   (* finally take all isolated points and count their regions *)
   let region_counts =
     all_coords
