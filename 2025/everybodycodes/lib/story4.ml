@@ -402,6 +402,34 @@ let%test_unit "vertical stitches (1)" =
 
 let is_stitched = equal_int 1
 
+let neighbors (x, y) ~h_stitches ~v_stitches =
+  List.concat
+    [
+      (if not (is_stitched h_stitches.(y).(x)) then
+         (* north is valid *)
+         [ (x, y - 1) ]
+       else []);
+      (if not (is_stitched h_stitches.(y + 1).(x)) then
+         (* south is valid *)
+         [ (x, y + 1) ]
+       else []);
+      (if not (is_stitched v_stitches.(x).(y)) then [ (x - 1, y) ] else []);
+      (if not (is_stitched v_stitches.(x + 1).(y)) then [ (x + 1, y) ] else []);
+    ]
+
+let is_isolated' (x, y) ~h_stitches ~v_stitches =
+  List.for_all
+    [
+      h_stitches.(y).(x);
+      h_stitches.(y + 1).(x);
+      v_stitches.(x).(y);
+      v_stitches.(x + 1).(y);
+    ]
+    ~f:is_stitched
+
+let is_isolated (x, y) ~h_stitches ~v_stitches =
+  List.is_empty (neighbors (x, y) ~h_stitches ~v_stitches)
+
 let num_isolated problem =
   let h_stitches, v_stitches =
     (horizontal_stitches problem, vertical_stitches problem)
@@ -409,16 +437,9 @@ let num_isolated problem =
   let answer = ref 0 in
   for y = 0 to problem.height - 1 do
     for x = 0 to problem.width - 1 do
-      if
-        List.for_all
-          [
-            h_stitches.(y).(x);
-            h_stitches.(y + 1).(x);
-            v_stitches.(x).(y);
-            v_stitches.(x + 1).(y);
-          ]
-          ~f:is_stitched
-      then answer := !answer + 1
+      if is_isolated (x, y) ~h_stitches ~v_stitches then (
+        Stdio.printf "%s is isolated (num_isolated)\n" (show_tuple (x, y));
+        answer := !answer + 1)
     done
   done;
   !answer
@@ -427,8 +448,8 @@ let%test_unit "num_isolated" =
   [%test_eq: int] 27
     (num_isolated
        {
-         height = 30;
-         width = 10;
+         width = 30;
+         height = 10;
          horizontal_offsets = [| 1; 0; 0; 1; 1 |];
          vertical_offsets = [| 1; 1; 0; 1; 1 |];
        })
@@ -461,3 +482,98 @@ let%test_unit "quest3part1" =
          "horizontal-offsets=10011";
          "vertical-offsets=11011";
        ])
+
+(* part 2 is just flood fill where we assign for every square a region number *)
+(* isolated squares have a region number but it's based on their neighbors *)
+(* we can just *)
+
+let is_valid_coord problem (x, y) =
+  0 <= x && x < problem.width && 0 <= y && y < problem.height
+
+let rec run_stitch_flood_fill problem unvisited_set visited_set ~h_stitches
+    ~v_stitches =
+  match Set.choose unvisited_set with
+  | None -> visited_set
+  | Some coord ->
+      run_stitch_flood_fill problem
+        (neighbors coord ~h_stitches ~v_stitches
+        |> List.filter ~f:(is_valid_coord problem)
+        |> List.fold ~init:(Set.remove unvisited_set coord)
+             ~f:(fun unvisited_set next ->
+               if Set.mem visited_set next then unvisited_set
+               else Set.add unvisited_set next))
+        (Set.add visited_set coord)
+        ~h_stitches ~v_stitches
+
+let empty_coord_set = Set.empty (module IntPair_Comparator)
+
+let any_neighbor_of_isolated_point (x, y) problem =
+  [ (x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y) ]
+  |> List.filter ~f:(is_valid_coord problem)
+  |> List.hd_exn
+
+let isolated_point_counts problem =
+  let all_coords =
+    List.concat
+      (List.init problem.width ~f:(fun x ->
+           List.init problem.height ~f:(fun y -> (x, y))))
+  in
+  let h_stitches, v_stitches =
+    (horizontal_stitches problem, vertical_stitches problem)
+  in
+  let current_region = ref 0 in
+  let coord_mapping =
+    all_coords
+    |> List.fold
+         ~init:(Map.empty (module IntPair_Comparator))
+         ~f:(fun m coord ->
+           if is_isolated coord ~h_stitches ~v_stitches then (
+             Stdio.printf "%s is isolated (mapping)\n" (show_tuple coord);
+             m)
+           else if Map.mem m coord then m
+           else (
+             current_region := !current_region + 1;
+             Stdio.printf
+               "flood fill from %s for region %d - if region is more than 2 \
+                this is a bug\n"
+               (show_tuple coord) !current_region;
+             Set.fold ~init:m
+               ~f:(fun m coord ->
+                 Map.add_exn m ~key:coord ~data:!current_region)
+               (run_stitch_flood_fill problem
+                  (Set.singleton (module IntPair_Comparator) coord)
+                  empty_coord_set ~h_stitches ~v_stitches)))
+  in
+  (* finally take all isolated points and count their regions *)
+  let region_counts =
+    all_coords
+    |> List.fold
+         ~init:(Map.empty (module Int))
+         ~f:(fun m coord ->
+           if is_isolated coord ~h_stitches ~v_stitches then (
+             let surrounding_coord =
+               any_neighbor_of_isolated_point coord problem
+             in
+             Stdio.printf "isolated coord %s has neighbor %s\n"
+               (show_tuple coord)
+               (show_tuple surrounding_coord);
+             Map.update m (Map.find_exn coord_mapping surrounding_coord)
+               ~f:(fun v -> Option.value_map v ~f:(fun n -> n + 1) ~default:1))
+           else m)
+  in
+  Stdio.printf "current region %d\n" !current_region;
+  for i = 1 to !current_region - 1 do
+    Stdio.printf "region %d has count %d" i (Map.find_exn region_counts i)
+  done;
+  1
+
+let%test_unit "isolated point counts" =
+  [%test_eq: int] 27
+    (isolated_point_counts
+    @@ parse_problem_part3
+         [
+           "width=30";
+           "height=10";
+           "horizontal-offsets=10011";
+           "vertical-offsets=11011";
+         ])
