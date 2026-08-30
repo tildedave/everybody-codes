@@ -437,9 +437,9 @@ let num_isolated problem =
   let answer = ref 0 in
   for y = 0 to problem.height - 1 do
     for x = 0 to problem.width - 1 do
-      if is_isolated (x, y) ~h_stitches ~v_stitches then (
-        Stdio.printf "%s is isolated (num_isolated)\n" (show_tuple (x, y));
-        answer := !answer + 1)
+      if is_isolated (x, y) ~h_stitches ~v_stitches then
+        (* Stdio.printf "%s is isolated (num_isolated)\n" (show_tuple (x, y)); *)
+        answer := !answer + 1
     done
   done;
   !answer
@@ -512,6 +512,32 @@ let any_neighbor_of_isolated_point (x, y) problem =
   |> List.filter ~f:(is_valid_coord problem)
   |> List.hd_exn
 
+let all_neighbors (x, y) problem =
+  [ (x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y) ]
+  |> List.filter ~f:(is_valid_coord problem)
+
+let alternate_region_neighbors (x, y) problem regions =
+  all_neighbors (x, y) problem
+  |> List.filter ~f:(fun other_coord ->
+         not
+           (equal_int
+              (Map.find_exn regions (x, y))
+              (Map.find_exn regions other_coord)))
+  |> Set.of_list (module IntPair_Comparator)
+
+let other_region b = match b with true -> false | false -> true
+
+module IntPairWithColor = struct
+  type t = (int * int) * bool [@@deriving compare, sexp_of]
+
+  let hash = Hashtbl.hash
+end
+
+module IntPairWithColor_Comparator = struct
+  include IntPairWithColor
+  include Base.Comparator.Make (IntPairWithColor)
+end
+
 let isolated_point_counts problem =
   let all_coords =
     List.concat
@@ -527,14 +553,14 @@ let isolated_point_counts problem =
     |> List.fold
          ~init:(Map.empty (module IntPair_Comparator))
          ~f:(fun m coord ->
-           if is_isolated coord ~h_stitches ~v_stitches then (
-             Stdio.printf "%s is isolated (mapping)\n" (show_tuple coord);
-             m)
+           if is_isolated coord ~h_stitches ~v_stitches then
+             (* Stdio.printf "%s is isolated (mapping)\n" (show_tuple coord); *)
+             m
            else if Map.mem m coord then m
            else (
              current_region := !current_region + 1;
-             Stdio.printf "flood fill from %s for region %d\n"
-               (show_tuple coord) !current_region;
+             (* Stdio.printf "flood fill from %s for region %d\n"
+                (show_tuple coord) !current_region; *)
              Set.fold ~init:m
                ~f:(fun m coord ->
                  Map.add_exn m ~key:coord ~data:!current_region)
@@ -542,7 +568,7 @@ let isolated_point_counts problem =
                   (Set.singleton (module IntPair_Comparator) coord)
                   empty_coord_set ~h_stitches ~v_stitches)))
   in
-  let coord_mapping_with_isolated =
+  let final_coord_mapping =
     all_coords
     |> List.fold ~init:coord_mapping ~f:(fun m coord ->
            if is_isolated coord ~h_stitches ~v_stitches then
@@ -554,31 +580,51 @@ let isolated_point_counts problem =
   in
   (* ok so we've assigned every coord a "region" now, but we haven't painted
      the regions the two different colors *)
+  (* we can just paint the nodes one at a time *)
+  let region_painting =
+    let rec paint_region painting unvisited_nodes =
+      match Set.choose unvisited_nodes with
+      | None -> painting
+      | Some (coord, color) ->
+          if Map.mem painting coord then
+            paint_region painting (Set.remove unvisited_nodes (coord, color))
+          else
+            paint_region
+              (Map.add_exn painting ~key:coord ~data:color)
+              (List.fold
+                 ~init:(Set.remove unvisited_nodes (coord, color))
+                 ~f:(fun unvisited_nodes other_coord ->
+                   if
+                     equal_int
+                       (Map.find_exn final_coord_mapping coord)
+                       (Map.find_exn final_coord_mapping other_coord)
+                   then Set.add unvisited_nodes (other_coord, color)
+                   else Set.add unvisited_nodes (other_coord, other_region color))
+                 (all_neighbors coord problem))
+    in
+    paint_region
+      (Map.empty (module IntPair_Comparator))
+      (Set.singleton
+         (module IntPairWithColor_Comparator)
+         (List.hd_exn all_coords, true))
+  in
   (* finally take all isolated points and count their regions *)
   let region_counts =
     all_coords
+    |> List.filter ~f:(is_isolated ~h_stitches ~v_stitches)
     |> List.fold
-         ~init:(Map.empty (module Int))
-         ~f:(fun m coord ->
-           if is_isolated coord ~h_stitches ~v_stitches then (
-             let surrounding_coord =
-               any_neighbor_of_isolated_point coord problem
-             in
-             Stdio.printf "isolated coord %s has neighbor %s\n"
-               (show_tuple coord)
-               (show_tuple surrounding_coord);
-             Map.update m (Map.find_exn coord_mapping surrounding_coord)
-               ~f:(fun v -> Option.value_map v ~f:(fun n -> n + 1) ~default:1))
-           else m)
+         ~init:(Map.empty (module Bool))
+         ~f:(fun counts coord ->
+           match Map.find region_painting coord with
+           | None -> counts
+           | Some b ->
+               Map.update counts b ~f:(fun no ->
+                   match no with None -> 1 | Some n -> n + 1))
   in
-  Stdio.printf "current region %d\n" !current_region;
-  for i = 1 to !current_region - 1 do
-    Stdio.printf "region %d has count %d" i (Map.find_exn region_counts i)
-  done;
-  1
+  Map.fold region_counts ~init:0 ~f:(fun ~key:_ ~data m -> max m data)
 
 let%test_unit "isolated point counts" =
-  [%test_eq: int] 27
+  [%test_eq: int] 15
     (isolated_point_counts
     @@ parse_problem_part3
          [
@@ -587,3 +633,27 @@ let%test_unit "isolated point counts" =
            "horizontal-offsets=10011";
            "vertical-offsets=11011";
          ])
+
+let%test_unit "isolated point counts (2)" =
+  [%test_eq: int] 7
+    (isolated_point_counts
+    @@ parse_problem_part3
+         [
+           "width=40";
+           "height=12";
+           "horizontal-offsets=11100";
+           "vertical-offsets=001101";
+         ])
+
+let%test_unit "isolated point counts (3)" =
+  [%test_eq: int] 269
+    (isolated_point_counts
+    @@ parse_problem_part3
+         [
+           "width=100";
+           "height=70";
+           "horizontal-offsets=111101111101101111000100100110";
+           "vertical-offsets=110100001110111011101000001111";
+         ])
+
+let quest3part2 l = isolated_point_counts @@ parse_problem_part3 l
