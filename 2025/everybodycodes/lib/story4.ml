@@ -482,31 +482,14 @@ let%test_unit "quest3part1" =
 let is_valid_coord problem (x, y) =
   0 <= x && x < problem.width && 0 <= y && y < problem.height
 
-let rec run_stitch_flood_fill problem unvisited_set visited_set ~h_stitches
-    ~v_stitches =
-  match Set.choose unvisited_set with
-  | None -> visited_set
-  | Some coord ->
-      run_stitch_flood_fill problem
-        (neighbors coord ~h_stitches ~v_stitches
-        |> List.filter ~f:(is_valid_coord problem)
-        |> List.fold ~init:(Set.remove unvisited_set coord)
-             ~f:(fun unvisited_set next ->
-               if Set.mem visited_set next then unvisited_set
-               else Set.add unvisited_set next))
-        (Set.add visited_set coord)
-        ~h_stitches ~v_stitches
-
-let empty_coord_set = Set.empty (module IntPair_Comparator)
-
-let any_neighbor_of_isolated_point (x, y) problem =
-  [ (x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y) ]
-  |> List.filter ~f:(is_valid_coord problem)
-  |> List.hd_exn
-
-let all_neighbors (x, y) problem =
-  [ (x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y) ]
-  |> List.filter ~f:(is_valid_coord problem)
+let neighbors_with_stitches (x, y) problem ~h_stitches ~v_stitches =
+  [
+    ((x, y - 1), is_stitched h_stitches.(y).(x));
+    ((x, y + 1), is_stitched h_stitches.(y + 1).(x));
+    ((x - 1, y), is_stitched v_stitches.(x).(y));
+    ((x + 1, y), is_stitched v_stitches.(x + 1).(y));
+  ]
+  |> List.filter ~f:(fun (coord, _) -> is_valid_coord problem coord)
 
 let other_region b = match b with true -> false | false -> true
 
@@ -528,43 +511,9 @@ let isolated_point_counts problem =
   let h_stitches, v_stitches =
     (horizontal_stitches problem, vertical_stitches problem)
   in
-  Stdio.printf "stitches calculated\n";
-  let current_region = ref 0 in
-  let coord_mapping =
-    all_coords
-    |> List.fold
-         ~init:(Map.empty (module IntPair_Comparator))
-         ~f:(fun m coord ->
-           if is_isolated coord ~h_stitches ~v_stitches then
-             (* Stdio.printf "%s is isolated (mapping)\n" (show_tuple coord); *)
-             m
-           else if Map.mem m coord then m
-           else (
-             current_region := !current_region + 1;
-             (* Stdio.printf "flood fill from %s for region %d\n"
-                (show_tuple coord) !current_region; *)
-             Set.fold ~init:m
-               ~f:(fun m coord ->
-                 Map.add_exn m ~key:coord ~data:!current_region)
-               (run_stitch_flood_fill problem
-                  (Set.singleton (module IntPair_Comparator) coord)
-                  empty_coord_set ~h_stitches ~v_stitches)))
-  in
-  Stdio.printf "coord mapping complete\n";
-  let final_coord_mapping =
-    all_coords
-    |> List.fold ~init:coord_mapping ~f:(fun m coord ->
-           if is_isolated coord ~h_stitches ~v_stitches then
-             let surrounding_coord =
-               any_neighbor_of_isolated_point coord problem
-             in
-             Map.add_exn m ~key:coord ~data:(Map.find_exn m surrounding_coord)
-           else m)
-  in
   (* ok so we've assigned every coord a "region" now, but we haven't painted
      the regions the two different colors *)
   (* we can just paint the nodes one at a time *)
-  Stdio.printf "beginning painting\n";
   let region_painting =
     let rec paint_region painting unvisited_nodes =
       match Set.choose unvisited_nodes with
@@ -577,14 +526,11 @@ let isolated_point_counts problem =
               (Map.add_exn painting ~key:coord ~data:color)
               (List.fold
                  ~init:(Set.remove unvisited_nodes (coord, color))
-                 ~f:(fun unvisited_nodes other_coord ->
-                   if
-                     equal_int
-                       (Map.find_exn final_coord_mapping coord)
-                       (Map.find_exn final_coord_mapping other_coord)
-                   then Set.add unvisited_nodes (other_coord, color)
-                   else Set.add unvisited_nodes (other_coord, other_region color))
-                 (all_neighbors coord problem))
+                 ~f:(fun unvisited_nodes (other_coord, crosses_stitch) ->
+                   if crosses_stitch then
+                     Set.add unvisited_nodes (other_coord, other_region color)
+                   else Set.add unvisited_nodes (other_coord, color))
+                 (neighbors_with_stitches coord problem ~h_stitches ~v_stitches))
     in
     paint_region
       (Map.empty (module IntPair_Comparator))
