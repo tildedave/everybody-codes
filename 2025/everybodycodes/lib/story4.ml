@@ -1,5 +1,3 @@
-[@@@ocaml.warning "-32"]
-
 open Base
 open Util
 
@@ -206,6 +204,8 @@ type part2problem = {
 }
 [@@deriving compare, sexp_of, show]
 
+let _ = pp_part2problem
+
 let parse_problem_part2 lines =
   {
     start = parse_coords (List.nth_exn lines 0);
@@ -337,6 +337,8 @@ type part3problem = {
 }
 [@@deriving compare, sexp_of, show]
 
+let _ = pp_part3problem
+
 let stitch_sequence =
   Sequence.unfold ~init:true ~f:(fun b -> Some ((if b then 1 else 0), not b))
 
@@ -416,16 +418,6 @@ let neighbors (x, y) ~h_stitches ~v_stitches =
       (if not (is_stitched v_stitches.(x).(y)) then [ (x - 1, y) ] else []);
       (if not (is_stitched v_stitches.(x + 1).(y)) then [ (x + 1, y) ] else []);
     ]
-
-let is_isolated' (x, y) ~h_stitches ~v_stitches =
-  List.for_all
-    [
-      h_stitches.(y).(x);
-      h_stitches.(y + 1).(x);
-      v_stitches.(x).(y);
-      v_stitches.(x + 1).(y);
-    ]
-    ~f:is_stitched
 
 let is_isolated (x, y) ~h_stitches ~v_stitches =
   List.is_empty (neighbors (x, y) ~h_stitches ~v_stitches)
@@ -516,21 +508,10 @@ let all_neighbors (x, y) problem =
   [ (x, y - 1); (x, y + 1); (x - 1, y); (x + 1, y) ]
   |> List.filter ~f:(is_valid_coord problem)
 
-let alternate_region_neighbors (x, y) problem regions =
-  all_neighbors (x, y) problem
-  |> List.filter ~f:(fun other_coord ->
-         not
-           (equal_int
-              (Map.find_exn regions (x, y))
-              (Map.find_exn regions other_coord)))
-  |> Set.of_list (module IntPair_Comparator)
-
 let other_region b = match b with true -> false | false -> true
 
 module IntPairWithColor = struct
   type t = (int * int) * bool [@@deriving compare, sexp_of]
-
-  let hash = Hashtbl.hash
 end
 
 module IntPairWithColor_Comparator = struct
@@ -547,6 +528,7 @@ let isolated_point_counts problem =
   let h_stitches, v_stitches =
     (horizontal_stitches problem, vertical_stitches problem)
   in
+  Stdio.printf "stitches calculated\n";
   let current_region = ref 0 in
   let coord_mapping =
     all_coords
@@ -568,6 +550,7 @@ let isolated_point_counts problem =
                   (Set.singleton (module IntPair_Comparator) coord)
                   empty_coord_set ~h_stitches ~v_stitches)))
   in
+  Stdio.printf "coord mapping complete\n";
   let final_coord_mapping =
     all_coords
     |> List.fold ~init:coord_mapping ~f:(fun m coord ->
@@ -581,6 +564,7 @@ let isolated_point_counts problem =
   (* ok so we've assigned every coord a "region" now, but we haven't painted
      the regions the two different colors *)
   (* we can just paint the nodes one at a time *)
+  Stdio.printf "beginning painting\n";
   let region_painting =
     let rec paint_region painting unvisited_nodes =
       match Set.choose unvisited_nodes with
