@@ -551,7 +551,9 @@ let isolated_point_counts problem =
                Map.update counts b ~f:(fun no ->
                    match no with None -> 1 | Some n -> n + 1))
   in
-  Map.fold region_counts ~init:0 ~f:(fun ~key:_ ~data m -> max m data)
+  Map.fold region_counts ~init:0 ~f:(fun ~key:_ ~data m ->
+      Stdio.printf "region has size %d\n" data;
+      max m data)
 
 let%test_unit "isolated point counts" =
   [%test_eq: int] 15
@@ -587,3 +589,9 @@ let%test_unit "isolated point counts (3)" =
          ])
 
 let quest3part2 l = isolated_point_counts @@ parse_problem_part3 l
+
+(* part 3 seems simple
+   there are only possible 2 color assignments for the regions of the stitches
+   OK, so stitch regions are actually different from each other, but there are
+   not actually that many unique configurations of the regions.
+*)
