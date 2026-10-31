@@ -4,3 +4,4 @@ quest-notes
 .DS_Store
 _build
 mandelbrot-viz.txt
+_opam/

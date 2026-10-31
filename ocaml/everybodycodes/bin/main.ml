@@ -25,20 +25,27 @@ Stdio.print_endline
    | "2025", "quest4", "2" ->
        Int.to_string @@ Y2025.Quest4.part2 (List.map ~f:Int.of_string lines)
    | "2025", "quest4", "3" -> Int.to_string @@ Y2025.Quest4.part3 lines
-   | "2025", "quest5", "1" -> Int.to_string @@ Y2025.Quest5.part1 @@ List.hd_exn lines
+   | "2025", "quest5", "1" ->
+       Int.to_string @@ Y2025.Quest5.part1 @@ List.hd_exn lines
    | "2025", "quest5", "2" -> Y2025.Quest5.part2 @@ lines
    | "2025", "quest5", "3" -> Int.to_string @@ Y2025.Quest5.part3 lines
-   | "2025", "quest6", "1" -> Int.to_string @@ Y2025.Quest6.part1 @@ List.hd_exn lines
-   | "2025", "quest6", "2" -> Int.to_string @@ Y2025.Quest6.part2 @@ List.hd_exn lines
+   | "2025", "quest6", "1" ->
+       Int.to_string @@ Y2025.Quest6.part1 @@ List.hd_exn lines
+   | "2025", "quest6", "2" ->
+       Int.to_string @@ Y2025.Quest6.part2 @@ List.hd_exn lines
    | "2025", "quest6", "3" ->
        Int.to_string
-       @@ Y2025.Quest6.part3 (List.hd_exn lines) ~num_repeats:1000 ~distance:1000
+       @@ Y2025.Quest6.part3 (List.hd_exn lines) ~num_repeats:1000
+            ~distance:1000
    | "2025", "quest7", "1" -> Y2025.Quest7.part1 lines
    | "2025", "quest7", "2" -> Int.to_string @@ Y2025.Quest7.part2 lines
    | "2025", "quest7", "3" -> Int.to_string @@ Y2025.Quest7.part3 lines
-   | "2025", "quest8", "1" -> Int.to_string @@ Y2025.Quest8.part1 @@ List.hd_exn lines
-   | "2025", "quest8", "2" -> Int.to_string @@ Y2025.Quest8.part2 @@ List.hd_exn lines
-   | "2025", "quest8", "3" -> Int.to_string @@ Y2025.Quest8.part3 @@ List.hd_exn lines
+   | "2025", "quest8", "1" ->
+       Int.to_string @@ Y2025.Quest8.part1 @@ List.hd_exn lines
+   | "2025", "quest8", "2" ->
+       Int.to_string @@ Y2025.Quest8.part2 @@ List.hd_exn lines
+   | "2025", "quest8", "3" ->
+       Int.to_string @@ Y2025.Quest8.part3 @@ List.hd_exn lines
    | "2025", "quest9", "1" -> Int.to_string @@ Y2025.Quest9.part1 lines
    | "2025", "quest9", "2" -> Int.to_string @@ Y2025.Quest9.part2 lines
    | "2025", "quest9", "3" -> Int.to_string @@ Y2025.Quest9.part3 lines
@@ -57,12 +64,18 @@ Stdio.print_endline
    | "2025", "quest14", "1" -> Int.to_string @@ Y2025.Quest14.part1 lines
    | "2025", "quest14", "2" -> Int.to_string @@ Y2025.Quest14.part2 lines
    | "2025", "quest14", "3" -> Int.to_string @@ Y2025.Quest14.part3 lines
-   | "2025", "quest15", "1" -> Int.to_string @@ Y2025.Quest15.part1 @@ List.hd_exn lines
-   | "2025", "quest15", "2" -> Int.to_string @@ Y2025.Quest15.part1 @@ List.hd_exn lines
-   | "2025", "quest15", "3" -> Int.to_string @@ Y2025.Quest15.part3 @@ List.hd_exn lines
-   | "2025", "quest16", "1" -> Int.to_string @@ Y2025.Quest16.part1 @@ List.hd_exn lines
-   | "2025", "quest16", "2" -> Int.to_string @@ Y2025.Quest16.part2 @@ List.hd_exn lines
-   | "2025", "quest16", "3" -> Int.to_string @@ Y2025.Quest16.part3 @@ List.hd_exn lines
+   | "2025", "quest15", "1" ->
+       Int.to_string @@ Y2025.Quest15.part1 @@ List.hd_exn lines
+   | "2025", "quest15", "2" ->
+       Int.to_string @@ Y2025.Quest15.part1 @@ List.hd_exn lines
+   | "2025", "quest15", "3" ->
+       Int.to_string @@ Y2025.Quest15.part3 @@ List.hd_exn lines
+   | "2025", "quest16", "1" ->
+       Int.to_string @@ Y2025.Quest16.part1 @@ List.hd_exn lines
+   | "2025", "quest16", "2" ->
+       Int.to_string @@ Y2025.Quest16.part2 @@ List.hd_exn lines
+   | "2025", "quest16", "3" ->
+       Int.to_string @@ Y2025.Quest16.part3 @@ List.hd_exn lines
    | "2025", "quest17", "1" -> Int.to_string @@ Y2025.Quest17.part1 lines
    | "2025", "quest17", "2" -> Int.to_string @@ Y2025.Quest17.part2 lines
    | "2025", "quest17", "3" -> Int.to_string @@ Y2025.Quest17.part3 lines
@@ -75,6 +88,8 @@ Stdio.print_endline
    | "2025", "quest20", "1" -> Int.to_string @@ Y2025.Quest20.part1 lines
    | "2025", "quest20", "2" -> Int.to_string @@ Y2025.Quest20.part2 lines
    | "2025", "quest20", "3" -> Int.to_string @@ Y2025.Quest20.part3 lines
+   | "2026", "quest1", "1" ->
+       Int.to_string @@ Y2026.Quest1.part1 (List.hd_exn lines)
    | "story1", "quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1", "quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1", "quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines

@@ -19,7 +19,7 @@
  (name everybodycodes)
  (synopsis "A short synopsis")
  (description "A longer description")
- (depends ocaml dune base core pvec ppx_jane ppx_inline_test ppx_deriving lp-glpk bignum domainslib)
+ (depends ocaml dune base core pvec ppx_jane ppx_inline_test ppx_deriving lp-glpk bignum domainslib ppx_sexp_conv)
  (tags
   (topics "to describe" your project)))
 

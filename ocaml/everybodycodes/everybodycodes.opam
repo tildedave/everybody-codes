@@ -21,6 +21,7 @@ depends: [
   "lp-glpk"
   "bignum"
   "domainslib"
+  "ppx_sexp_conv"
   "odoc" {with-doc}
 ]
 build: [

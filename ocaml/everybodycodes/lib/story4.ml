@@ -552,7 +552,7 @@ let isolated_point_counts problem =
                    match no with None -> 1 | Some n -> n + 1))
   in
   Map.fold region_counts ~init:0 ~f:(fun ~key:_ ~data m ->
-      Stdio.printf "region has size %d\n" data;
+      (* Stdio.printf "region has size %d\n" data; *)
       max m data)
 
 let%test_unit "isolated point counts" =
