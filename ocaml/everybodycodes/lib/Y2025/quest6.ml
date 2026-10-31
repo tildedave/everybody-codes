@@ -31,27 +31,27 @@ let num_pairs_part3 ~num_repeats ~distance ~length locations ch1 ch2 =
   Map.find_exn locations ch2
   |> List.cartesian_product (Map.find_exn locations ch1)
   |> List.map ~f:(fun (mentor_n, novice_n) ->
-         (* primary case, mentor < novice and within the given distance *)
-         (if Int.abs (novice_n - mentor_n) <= distance then num_repeats else 0)
-         (* wraparound cases assume length of string * 2 < distance *)
-         + (if
-              (* wraparound case: |start| novice .... mentor |end| *)
-              Int.abs (novice_n - mentor_n - length) <= distance
-            then num_repeats - 1
-            else 0)
-         +
-         if
-           (* wraparound case: |start| mentor .... novice |end| *)
-           Int.abs (mentor_n - novice_n - length) <= distance
+      (* primary case, mentor < novice and within the given distance *)
+      (if Int.abs (novice_n - mentor_n) <= distance then num_repeats else 0)
+      (* wraparound cases assume length of string * 2 < distance *)
+      + (if
+           (* wraparound case: |start| novice .... mentor |end| *)
+           Int.abs (novice_n - mentor_n - length) <= distance
          then num_repeats - 1
          else 0)
+      +
+      if
+        (* wraparound case: |start| mentor .... novice |end| *)
+        Int.abs (mentor_n - novice_n - length) <= distance
+      then num_repeats - 1
+      else 0)
   |> Util.sum_list
 
 let num_pairs_brute_force ~distance locations ch1 ch2 =
   Map.find_exn locations ch2
   |> List.cartesian_product (Map.find_exn locations ch1)
   |> List.filter ~f:(fun (mentor_n, novice_n) ->
-         Int.abs (mentor_n - novice_n) <= distance)
+      Int.abs (mentor_n - novice_n) <= distance)
   |> List.length
 
 let part3 s ~distance ~num_repeats =

@@ -39,7 +39,7 @@ let part2 l =
   in
   names
   |> List.fold ~init:(1, 0) ~f:(fun (idx, acc) s ->
-         (idx + 1, if is_valid m s then acc + idx else acc))
+      (idx + 1, if is_valid m s then acc + idx else acc))
   |> snd
 
 let%test_unit "part1 given" =

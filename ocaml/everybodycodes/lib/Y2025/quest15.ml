@@ -7,13 +7,11 @@ type direction = Left of int | Right of int
 let parse_instructions s =
   s |> String.split ~on:','
   |> List.map ~f:(fun s ->
-         let n =
-           Int.of_string @@ String.sub s ~pos:1 ~len:(String.length s - 1)
-         in
-         match s.[0] with
-         | 'L' -> Left n
-         | 'R' -> Right n
-         | _ -> failwith "bad input")
+      let n = Int.of_string @@ String.sub s ~pos:1 ~len:(String.length s - 1) in
+      match s.[0] with
+      | 'L' -> Left n
+      | 'R' -> Right n
+      | _ -> failwith "bad input")
 
 let delta facing dir =
   match (facing, dir) with
@@ -49,8 +47,8 @@ let rec follow_directions (x, y, facing, walls) directions =
             next_facing facing dir,
             1 -- n
             |> List.fold ~init:walls ~f:(fun acc n ->
-                   let nx, ny = (x + (n * dx), y + (n * dy)) in
-                   Set.add acc (nx, ny)) )
+                let nx, ny = (x + (n * dx), y + (n * dy)) in
+                Set.add acc (nx, ny)) )
           dl
       in
       match dir with Left n -> walk n | Right n -> walk n)
@@ -91,7 +89,7 @@ let flood_fill distance_fn (start, goal, walls) =
         |> List.map ~f:(fun (dx, dy) -> (fst next + dx, snd next + dy))
         |> List.filter ~f:(fun c -> not (Set.mem walls c))
         |> List.filter ~f:(fun (x, y) ->
-               x >= xmin && x <= xmax && y >= ymin && y <= ymax))
+            x >= xmin && x <= xmax && y >= ymin && y <= ymax))
   done;
   (* Stdio.printf "bounds %s %s\n"
        (show_tuple (xmin, xmax))
@@ -162,9 +160,9 @@ let build_compressed_walls lines (x_compressor, y_compressor) =
 let compression f l =
   l
   |> List.fold ~init:[] ~f:(fun acc (sc, ec) ->
-         let x, y = (f sc, f ec) in
-         (* needs elements right before s and right before e to simulate wall hugging *)
-         x :: (x + 1) :: (x - 1) :: y :: (y + 1) :: (y - 1) :: acc)
+      let x, y = (f sc, f ec) in
+      (* needs elements right before s and right before e to simulate wall hugging *)
+      x :: (x + 1) :: (x - 1) :: y :: (y + 1) :: (y - 1) :: acc)
   |> List.sort ~compare
   |> List.remove_consecutive_duplicates ~equal
   |> List.foldi

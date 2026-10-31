@@ -84,12 +84,12 @@ let find_parents s all_pairs =
   with_return (fun r ->
       all_pairs
       |> List.filter ~f:(fun (s1, s2) ->
-             (not (equal_string s1 s))
-             && (not (equal_string s2 s))
-             && equal_int (compare_string s1 s2) (-1))
+          (not (equal_string s1 s))
+          && (not (equal_string s2 s))
+          && equal_int (compare_string s1 s2) (-1))
       |> List.iter ~f:(fun (p1, p2) ->
-             if is_child s (set_add_all (Set.empty (module String)) [ p1; p2 ])
-             then r.return (Some (p1, p2)));
+          if is_child s (set_add_all (Set.empty (module String)) [ p1; p2 ])
+          then r.return (Some (p1, p2)));
       None)
 
 (* we will just brute force part 2 I suppose *)
@@ -101,9 +101,9 @@ let part2 l =
   in
   seqs
   |> Set.fold ~init:0 ~f:(fun acc s ->
-         match find_parents s all_pairs with
-         | None -> acc
-         | Some (s1, s2) -> acc + (similarity_score s s1 * similarity_score s s2))
+      match find_parents s all_pairs with
+      | None -> acc
+      | Some (s1, s2) -> acc + (similarity_score s s1 * similarity_score s s2))
 
 let%test_unit "part2 (given)" =
   [%test_eq: int] 1245

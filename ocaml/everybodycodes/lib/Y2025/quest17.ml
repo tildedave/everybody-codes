@@ -141,7 +141,8 @@ let neighbors grid vcoords { position; time; progress; closest_radius } =
         | Some q ->
             q <> progress + 1 && q <> progress && not (progress = 4 && q = 1)
         | None -> false
-      then (* going to the wrong section, or going backwards *)
+      then
+        (* going to the wrong section, or going backwards *)
         None
       else
         let time_used =

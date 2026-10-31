@@ -79,9 +79,9 @@ let _part3 nail_count s =
   in
   all_pairs nail_count
   |> List.map ~f:(fun p1 ->
-         lines
-         |> List.filter ~f:(fun p2 -> intersects p1 p2 || equal_points p1 p2)
-         |> List.length)
+      lines
+      |> List.filter ~f:(fun p2 -> intersects p1 p2 || equal_points p1 p2)
+      |> List.length)
   |> List.max_elt ~compare |> Option.value ~default:0
 
 let%test_unit "part3 given" = [%test_eq: int] 7 (_part3 8 "1,5,2,6,8,4,1,7,3,6")

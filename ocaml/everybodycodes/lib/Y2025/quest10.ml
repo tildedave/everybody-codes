@@ -52,7 +52,7 @@ let bounds l = (String.length (List.hd_exn l), List.length l)
 let find_start l =
   l
   |> List.find_mapi ~f:(fun y s ->
-         match String.index s 'D' with None -> None | Some x -> Some (x, y))
+      match String.index s 'D' with None -> None | Some x -> Some (x, y))
   |> Option.value_exn
 
 let _part1 num_moves l =
@@ -179,7 +179,7 @@ let bb_to_string (xmax, ymax) bb =
 let to_bb ch l =
   String.concat l
   |> String.foldi ~init:0 ~f:(fun n acc ch' ->
-         if equal_char ch ch' then set_bit acc n else acc)
+      if equal_char ch ch' then set_bit acc n else acc)
 
 let%test_unit "bb to string" =
   [%test_eq: string] ".##.#........................."
