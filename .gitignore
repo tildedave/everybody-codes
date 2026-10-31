@@ -5,3 +5,4 @@ quest-notes
 _build
 mandelbrot-viz.txt
 _opam/
+.vscode/
