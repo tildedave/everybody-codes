@@ -90,6 +90,8 @@ Stdio.print_endline
    | "2025", "quest20", "3" -> Int.to_string @@ Y2025.Quest20.part3 lines
    | "2026", "quest1", "1" ->
        Int.to_string @@ Y2026.Quest1.part1 (List.hd_exn lines)
+   | "2026", "quest1", "2" ->
+       Int.to_string @@ Y2026.Quest1.part2 (List.hd_exn lines)
    | "story1", "quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1", "quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1", "quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
