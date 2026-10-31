@@ -6,3 +6,5 @@ _build
 mandelbrot-viz.txt
 _opam/
 .vscode/
+.lsp
+.clj-kondo
