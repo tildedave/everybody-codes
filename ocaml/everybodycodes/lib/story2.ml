@@ -100,9 +100,9 @@ let quest1part2 l =
   | Board ((xmax, _), _) ->
       tokens
       |> List.map ~f:(fun token ->
-             1 -- ((xmax + 1) / 2)
-             |> List.map ~f:(fun slot_num -> tokens_won board token slot_num)
-             |> List.max_elt ~compare |> Option.value_exn)
+          1 -- ((xmax + 1) / 2)
+          |> List.map ~f:(fun slot_num -> tokens_won board token slot_num)
+          |> List.max_elt ~compare |> Option.value_exn)
       |> List.fold ~f:( + ) ~init:0
 
 let%test_unit "quest1 quest1part2 (coins won)" =
@@ -217,10 +217,10 @@ let quest1part3 l =
   let token_to_slot_mapping = Hashtbl.create (module String) in
   tokens
   |> List.iter ~f:(fun token ->
-         Hashtbl.set token_to_slot_mapping ~key:token
-           ~data:
-             (Array.init (num_slots board) ~f:(fun s ->
-                  tokens_won board token (s + 1))));
+      Hashtbl.set token_to_slot_mapping ~key:token
+        ~data:
+          (Array.init (num_slots board) ~f:(fun s ->
+               tokens_won board token (s + 1))));
   Printf.sprintf "%d %d"
     (solve (num_slots board) token_to_slot_mapping ~max:false)
     (solve (num_slots board) token_to_slot_mapping ~max:true)
@@ -438,13 +438,13 @@ let quest3part2 l =
         let next_positions =
           List.zip_exn die_results player_state
           |> List.map ~f:(fun (result, pos) ->
-                 match pos with
-                 | Active p ->
-                     if result = List.nth_exn board p then
-                       if p + 1 = board_length then Completed round_num
-                       else Active (p + 1)
-                     else pos
-                 | Completed _ -> pos)
+              match pos with
+              | Active p ->
+                  if result = List.nth_exn board p then
+                    if p + 1 = board_length then Completed round_num
+                    else Active (p + 1)
+                  else pos
+              | Completed _ -> pos)
         in
         if
           List.is_empty
@@ -457,9 +457,9 @@ let quest3part2 l =
   in
   finish_rounds
   |> List.mapi ~f:(fun n k ->
-         match k with
-         | Active _ -> failwith "impossible"
-         | Completed a -> (n + 1, a))
+      match k with
+      | Active _ -> failwith "impossible"
+      | Completed a -> (n + 1, a))
   |> List.sort ~compare:(fun (_, b1) (_, b2) -> compare b1 b2)
   |> List.map ~f:(fun c -> Int.to_string @@ fst c)
   |> String.concat ~sep:","
