@@ -9,41 +9,6 @@ let string_to_nums s =
 let%test_unit "string_to_nums" =
   [%test_eq: int list] [ 3; 4; 5; 2 ] (string_to_nums "3452")
 
-(* part3 is simple too I think - given a sequence and a number we convert to
-   ISO-2, then compare equality - if the same good, otherwise discard *)
-(* for each number + power mod the number by the digit and reduce mod power *)
-
-(* let's think about how 213215 would be converted to base 10 -- starting from
-   the right.
-
-   ((10, 0), 5) --> 213215 -> mod 10 = 5, then divide by 10.  the exponent
-   shouldn't matter?  clearly it must
-
-   N = ((pow, base), digit) :: rest n
-
-   N = base^pow * digit + (IH)  (digit is unknown)
-   we just be greedy.  take the largest possible value that doesn't overflow.
-   ^^ doesn't work
-   just mod base^pow, recurse, digit is ez
-
-   34 = x + 6y  (we're not using linear optimization for this)
-   OK so running into issues here, we have to go top to bottom here.
-
-   72 = 7x + y
-*)
-let rec smallest_repr_greedy n seq =
-  if equal n 0 then []
-  else
-    let pow, base = Sequence.hd_exn seq in
-    let digit = min ((n - (n % (base ** pow))) / (base ** pow)) 9 in
-    let remainder = n - (digit * (base ** pow)) in
-    (* can't have digit 10 - how can that logic come in? *)
-    Stdio.printf "%d = %d * (%d ** %d) + remainder %d\n" n digit base pow
-      remainder;
-    digit :: smallest_repr_greedy remainder (Sequence.tl_eagerly_exn seq)
-
-(* OK so this greedy approach isn't working.  I think we have to brute force? *)
-
 let to_power_seq first len =
   let first_nums =
     Sequence.of_list @@ Sequence.to_list_rev
@@ -63,22 +28,6 @@ let%test_unit "to_power_seq (2)" =
     [ (1, 7); (0, 8) ]
     (Sequence.to_list (to_power_seq "978" 2))
 
-(* going backwards is right *)
-let%test_unit "smallest_repr_greedy" =
-  [%test_eq: int list] [ 5; 4 ]
-    (smallest_repr_greedy 34 (Sequence.cycle_list_exn [ (1, 6); (0, 1) ]))
-
-let%test_unit "smallest_repr_greedy (2)" =
-  [%test_eq: int list] [ 9; 9 ]
-    (smallest_repr_greedy 72 (Sequence.cycle_list_exn [ (1, 7); (0, 8) ]))
-
-(* 1220 = 5^3 * 5 + 8^2 * 9 + 8 * 2 + 3 * 7^0 *)
-
-(* let%test_unit "smallest_repr_greedy (3)" =
-  [%test_eq: int list] [ 5; 9; 2; 3 ]
-    (smallest_repr_greedy 1220
-       (Sequence.cycle_list_exn [ (3, 5); (2, 8); (1, 8); (0, 7) ])) *)
-
 let repr_to_int second pow_seq =
   Sequence.zip pow_seq (String.to_sequence second)
   |> Sequence.map ~f:(fun ((pow, base), ch) ->
@@ -87,9 +36,7 @@ let repr_to_int second pow_seq =
 
 let to_digits n = string_to_nums @@ Int.to_string n
 
-(* deeply inefficient -
-   next issue: seq must be clamped to the length of our digits
- *)
+(* just brute force it *)
 let smallest_repr n ~target code =
   let curr = ref (n - 1) in
   let n_length = List.length (to_digits n) in
