@@ -79,23 +79,28 @@ let%test_unit "smallest_repr_greedy (2)" =
     (smallest_repr_greedy 1220
        (Sequence.cycle_list_exn [ (3, 5); (2, 8); (1, 8); (0, 7) ])) *)
 
-let repr_to_int second_nums pow_seq =
-  Sequence.zip pow_seq (Sequence.of_list second_nums)
-  |> Sequence.map ~f:(fun ((pow, base), digit) -> (base ** pow) * digit)
+let repr_to_int second pow_seq =
+  Sequence.zip pow_seq (String.to_sequence second)
+  |> Sequence.map ~f:(fun ((pow, base), ch) ->
+      (base ** pow) * Int.of_string (Char.to_string ch))
   |> Sequence.fold ~init:0 ~f:( + )
 
 let to_digits n = string_to_nums @@ Int.to_string n
 
-(* deeply inefficient - can be much smarter with power_seq
+(* deeply inefficient -
    next issue: seq must be clamped to the length of our digits
  *)
 let smallest_repr n ~target code =
   let curr = ref (n - 1) in
+  let n_length = List.length (to_digits n) in
+  let pow_seq = to_power_seq code n_length in
   let result = ref None in
   while !curr > 0 && Option.is_none !result do
-    let curr_digits = to_digits !curr in
-    let seq = to_power_seq code (List.length curr_digits) in
-    if equal (repr_to_int curr_digits seq) target then result := Some !curr;
+    let curr_string = Int.to_string !curr in
+    (* if length (curr_digits) < n_length for the powers, we drop the first n *)
+    let seq = Sequence.drop pow_seq (n_length - String.length curr_string) in
+    if equal (repr_to_int curr_string seq) target then result := Some !curr;
+    (* seems clear that there is a point where we could stop, but this is fast enough I guess *)
     curr := !curr - 1
   done;
   if Option.is_none !result then n else Option.value_exn !result
@@ -107,29 +112,22 @@ let%test_unit "smallest_repr (brute force 2)" =
   [%test_eq: int] 54 (smallest_repr 149 ~target:34 "61")
 
 let smallest_repr_string start ~target code =
-  Stdio.printf "---- smallest_repr_string %d ---\n" target;
   Int.to_string @@ smallest_repr start ~target code
 
 let nums s =
   let is_iso_2 = String.is_substring s ~substring:"ISO2-" in
   match String.split ~on:' ' @@ List.nth_exn (String.split s ~on:'-') 1 with
   | [ first; second ] ->
-      let second_nums = string_to_nums second in
-      let len = List.length second_nums in
+      let len = String.length second in
       let pow_seq = to_power_seq first len in
-      (* this is silly *)
-      let result = repr_to_int second_nums pow_seq in
+      let result = repr_to_int second pow_seq in
       if
         (not is_iso_2)
         || equal_string
              (smallest_repr_string (Int.of_string second) ~target:result first)
              second
-      then (
-        Stdio.printf "accepting %d!\n" result;
-        result)
-      else (
-        Stdio.printf "womp womp -- rejecting %d\n" result;
-        0)
+      then result
+      else 0
   | _ -> failwith "invalid"
 
 let%test_unit "nums (easy)" = [%test_eq: int] 9 (nums "ISO-3 23")
