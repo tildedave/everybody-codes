@@ -100,12 +100,11 @@ let%test_unit "final_result (pt2)" =
 let all_players = Map.keys
 
 let all_quests m =
-  m
-  |> Map.fold
-       ~init:(Set.empty (module Int))
-       ~f:(fun ~key:_ ~data acc ->
-         List.fold ~init:acc ~f:(fun acc i -> Set.add acc i.quest) data)
-  |> Set.to_list |> List.sort ~compare
+  m |> Map.data
+  |> List.concat_map ~f:(List.map ~f:(fun i -> i.quest))
+  |> List.max_elt ~compare:Int.compare
+  |> Option.value ~default:0
+  |> List.range 1 ~stop:`inclusive
 
 let has_completed m i quest part =
   Map.find_exn m i
@@ -117,11 +116,17 @@ let total_time m quest part player =
   |> List.filter ~f:(fun i -> equal i.quest quest && i.part <= part)
   |> List.fold ~init:0 ~f:(fun acc i -> i.time + acc)
 
+(* can apparently
+    List.sum
+       (module Int)
+       ~f:(fun i -> if equal i.quest quest && i.part <= part then i.time else 0)
+*)
+
 let rank m quest part =
   all_players m
   |> List.filter ~f:(fun i -> has_completed m i quest part)
   |> List.map ~f:(fun i -> (i, total_time m quest part i))
-  |> List.sort ~compare:(fun (_, t1) (_, t2) -> compare t1 t2)
+  |> List.sort ~compare:(Comparable.lift compare ~f:snd)
 
 let points m ~quest ~part =
   let ranked = rank m quest part in
@@ -208,8 +213,7 @@ let final_ranking m =
       List.concat_map parts ~f:(fun part -> points m ~quest ~part))
   |> Map.of_alist_reduce (module Int) ~f:( + )
   |> Map.to_alist
-  |> List.sort ~compare:(fun (_, pt1) (_, pt2) -> compare pt2 pt1)
-(* apparently can Comparator.lift the last bit *)
+  |> List.sort ~compare:(Comparable.lift compare ~f:snd)
 
 let%test_unit "final ranking" =
   [%test_eq: (int * int) list]
