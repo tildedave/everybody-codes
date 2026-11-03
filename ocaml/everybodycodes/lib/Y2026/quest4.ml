@@ -213,7 +213,7 @@ let final_ranking m =
       List.concat_map parts ~f:(fun part -> points m ~quest ~part))
   |> Map.of_alist_reduce (module Int) ~f:( + )
   |> Map.to_alist
-  |> List.sort ~compare:(Comparable.lift compare ~f:snd)
+  |> List.sort ~compare:(Comparable.lift Int.descending ~f:snd)
 
 let%test_unit "final ranking" =
   [%test_eq: (int * int) list]
