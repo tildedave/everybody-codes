@@ -57,7 +57,7 @@ let%test_unit "part 2 (given)" =
 let part3 l =
   let grid = to_grid l in
   let find_winner last_best_exploded =
-    grid_fold grid
+    grid_foldi grid
       ~init:((0, 0), 0, Hash_set.create (module IntPair))
       ~f:(fun (x, y) (winner, winner_count, winner_exploded) _ ->
         let my_exploded = Hash_set.copy last_best_exploded in

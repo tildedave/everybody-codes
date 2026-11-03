@@ -32,11 +32,12 @@ end
 
 type grid = { cells : char array array; bounds : int * int }
 val to_grid: string list -> grid
-val grid_fold: grid -> f:(int * int -> 'a -> char -> 'a) -> init:'a -> 'a
+val grid_foldi: grid -> f:(int * int -> 'a -> char -> 'a) -> init:'a -> 'a
 val grid_at: grid -> int * int -> char
 val grid_neighbors : (int * int) list -> grid -> int * int -> (int * int) list
 val grid_cardinal_neighbors: grid -> int * int -> (int * int) list
 val grid_diagonal_neighbors: grid -> int * int -> (int * int) list
+val grid_all_neighbors: grid -> int * int -> (int * int) list
 val grid_all_coords : grid -> (int * int) list
 val grid_find : grid -> f:(char -> bool) -> (int * int) option
 val grid_find_all : grid -> f:(char -> bool) -> (int * int) list

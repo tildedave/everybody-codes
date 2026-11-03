@@ -97,7 +97,7 @@ let to_grid l =
 
 let grid_at grid (x, y) = grid.cells.(y).(x)
 
-let grid_fold grid ~f ~init =
+let grid_foldi grid ~f ~init =
   Array.foldi ~init
     ~f:(fun y acc arr ->
       Array.foldi ~init:acc ~f:(fun x acc ch -> f (x, y) acc ch) arr)
@@ -122,6 +122,10 @@ let grid_cardinal_neighbors =
 
 let grid_diagonal_neighbors =
   grid_neighbors [ (1, 1); (1, -1); (-1, 1); (-1, -1) ]
+
+let grid_all_neighbors =
+  grid_neighbors
+    [ (0, 1); (1, 0); (-1, 0); (0, -1); (1, 1); (1, -1); (-1, 1); (-1, -1) ]
 
 let id x = x
 

@@ -11,7 +11,7 @@ let distance_to_volcano (xv, yv) (xc, yc) =
 
 let num_destroyed r destroyed grid =
   let xv, yv = grid |> grid_find ~f:(equal_char '@') |> Option.value_exn in
-  grid_fold grid ~init:(0, destroyed) ~f:(fun (xc, yc) (count, destroyed) ch ->
+  grid_foldi grid ~init:(0, destroyed) ~f:(fun (xc, yc) (count, destroyed) ch ->
       if equal_tuple (xc, yc) (xv, yv) then (count, destroyed)
       else if Set.mem destroyed (xc, yc) then (count, destroyed)
       else if in_volcano_radius (xv, yv) (xc, yc) r then

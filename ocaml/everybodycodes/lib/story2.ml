@@ -524,7 +524,7 @@ let quest3part3 l =
   let dice = List.map ~f:parse_die _dice in
   let grid = to_grid @@ List.drop _board 1 in
   grid
-  |> grid_fold
+  |> grid_foldi
        ~init:
          ( Set.empty (module IntPair_Comparator),
            Set.empty (module DieSquare_Comparator) )

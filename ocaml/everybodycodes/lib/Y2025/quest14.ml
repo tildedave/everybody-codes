@@ -20,7 +20,7 @@ let next_state grid state =
        ~init:(Set.empty (module IntPair_Comparator))
 
 let initial_coords grid =
-  grid_fold grid
+  grid_foldi grid
     ~f:(fun c acc ch -> if equal_char ch '#' then Set.add acc c else acc)
     ~init:(Set.empty (module IntPair_Comparator))
 
@@ -44,7 +44,7 @@ let part2 = count_active_tiles 2025
 (* 1 billion may still be computable :-) *)
 
 let build_pattern_sets grid =
-  grid_fold grid
+  grid_foldi grid
     ~f:(fun (x, y) (ps, aps) ch ->
       if equal_char ch '#' then (Set.add ps (x + 13, y + 13), aps)
       else (ps, Set.add aps (x + 13, y + 13)))
