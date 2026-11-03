@@ -44,18 +44,12 @@ let step grid dark_cells (land_cells, frontier) =
 
       yield the current number of land cells (total)
   *)
+  let becomes_land neighbor =
+    Set.mem dark_cells neighbor || Set.mem land_cells neighbor
+  in
   let new_land =
-    Set.fold
-      ~init:(Set.empty (module IntPair_Comparator))
-      ~f:(fun acc coord ->
-        let total =
-          grid_all_neighbors grid coord
-          |> List.filter ~f:(fun neighbor ->
-              Set.mem dark_cells neighbor || Set.mem land_cells neighbor)
-          |> List.length
-        in
-        if total >= 5 then Set.add acc coord else acc)
-      frontier
+    Set.filter frontier ~f:(fun coord ->
+        List.count (grid_all_neighbors grid coord) ~f:becomes_land >= 5)
   in
   if Set.is_empty new_land then None
   else
@@ -64,9 +58,7 @@ let step grid dark_cells (land_cells, frontier) =
       Set.fold
         ~init:(Set.empty (module IntPair_Comparator))
         ~f:(fun acc coord ->
-          List.fold ~init:acc
-            ~f:(fun acc neighbor -> Set.add acc neighbor)
-            (grid_all_neighbors grid coord))
+          List.fold ~init:acc ~f:Set.add (grid_all_neighbors grid coord))
         new_land
     in
     let next_frontier = Set.diff (Set.union frontier new_neighbors) next_land in
