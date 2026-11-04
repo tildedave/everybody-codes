@@ -155,10 +155,10 @@ let maximize initial l ~explode_at =
         |> List.sum (module Int) ~f:Fn.id
       in
       (c, energy))
-  |> List.max_elt ~compare:(Comparable.lift Int.descending ~f:snd)
+  |> List.max_elt ~compare:(Comparable.lift compare ~f:snd)
   |> Option.value_exn |> snd
 
-let part3 _ = 1
+let part3 = maximize 10 ~explode_at:(Some 1000000)
 
 let%test_unit "maximize" =
   [%test_eq: int] 187 (maximize 10 example ~explode_at:(Some 100))
