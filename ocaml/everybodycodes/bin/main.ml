@@ -106,6 +106,9 @@ Stdio.print_endline
    | "2026", "quest5", "1" -> Int.to_string @@ Y2026.Quest5.part1 lines
    | "2026", "quest5", "2" -> Int.to_string @@ Y2026.Quest5.part2 lines
    | "2026", "quest5", "3" -> Int.to_string @@ Y2026.Quest5.part3 lines
+   | "2026", "quest6", "1" -> Int.to_string @@ Y2026.Quest6.part1 lines
+   | "2026", "quest6", "2" -> Int.to_string @@ Y2026.Quest6.part2 lines
+   | "2026", "quest6", "3" -> Int.to_string @@ Y2026.Quest6.part3 lines
    | "story1", "quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1", "quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1", "quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
