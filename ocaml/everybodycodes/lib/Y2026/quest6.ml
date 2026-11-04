@@ -13,7 +13,7 @@ let rec dfs m visited node =
   List.fold ~init:(Set.add visited node)
     ~f:(fun visited neighbor ->
       if not (Set.mem visited neighbor) then dfs m visited neighbor else visited)
-    (Option.value (Map.find m node) ~default:[])
+    (Map.find_multi m node)
 
 let example =
   [
