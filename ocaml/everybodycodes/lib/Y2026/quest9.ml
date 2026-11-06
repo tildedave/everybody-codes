@@ -37,11 +37,15 @@ let _total_leaves plant =
   in
   walk plant - 1
 
-let grow2 ~growth (segments, num_splits) =
+let next_tick ~growth (segments, _) =
+  growth - (segments |> Map.keys |> List.max_elt ~compare |> Option.value_exn)
+
+let grow2 ~growth ~tick (segments, num_splits) =
   Map.fold segments
     ~init:(Map.empty (module Int), num_splits)
     ~f:(fun ~key:size ~data:count (next_segments, num_splits) ->
-      if equal (size + 1) growth then
+      assert (size + tick <= growth);
+      if equal (size + tick) growth then
         let next =
           Map.update
             (Map.update next_segments 1
@@ -51,7 +55,7 @@ let grow2 ~growth (segments, num_splits) =
         in
         (next, num_splits + count)
       else
-        ( Map.update next_segments (size + 1)
+        ( Map.update next_segments (size + tick)
             ~f:(Option.value_map ~default:count ~f:(( + ) count)),
           num_splits ))
 
@@ -94,8 +98,16 @@ let%test_unit "part1" = [%test_eq: int] 27 (part1 example)
 
 let grow2_seq ~growth =
   Sequence.unfold
-    ~f:(fun trees -> Some (trees, grow2 ~growth trees))
+    ~f:(fun trees -> Some (trees, grow2 ~growth ~tick:1 trees))
     ~init:(Map.singleton (module Int) 1 1, 0)
+
+let grow2_smarter_seq ~growth =
+  Sequence.unfold
+    ~f:(fun (i, state) ->
+      let tick = next_tick ~growth state in
+      let next_state = grow2 ~growth ~tick:(next_tick ~growth state) state in
+      Some ((i, state), (i + tick, next_state)))
+    ~init:(1, (Map.singleton (module Int) 1 1, 0))
 
 let part2 =
   List.sum
@@ -118,4 +130,14 @@ let _print_map m =
 (* how many segments?  we know that through simulation *)
 (* how many splits?  we will need to keep track of that since splits are not uniform *)
 
-let part3 _ = 1
+let part3 =
+  List.sum
+    (module Int)
+    ~f:(fun s ->
+      let growth, limit = parse_line s in
+      grow2_smarter_seq ~growth
+      |> Sequence.map ~f:(fun (time, state) -> (time, total_leaves' state))
+      |> Sequence.drop_while ~f:(fun (_, n) -> n < limit)
+      |> Sequence.hd_exn |> fst)
+
+let%test_unit "part3 (part2 input)" = [%test_eq: int] 42 (part3 example)
