@@ -34,7 +34,6 @@ let trace_shadow ((xmax, ymax), m) (dx, dy) (x, y) =
       | None -> ray (x + dx, y + dy) shadows result
       | Some p -> (
           (* must be > all shadows *)
-          (* note I think we can prune the shadows to just the greatest one.  test after implemented as written *)
           let next_shadows =
             List.filter_map
               ~f:(fun n -> if n > 1 then Some (n - 1) else None)
@@ -45,7 +44,11 @@ let trace_shadow ((xmax, ymax), m) (dx, dy) (x, y) =
           | Some n ->
               if (not (equal n 0)) && List.for_all shadows ~f:(fun s -> n > s)
               then
-                ray (x + dx, y + dy) ((n - 1) :: next_shadows) ((x, y) :: result)
+                ray
+                  (x + dx, y + dy)
+                  (* can immediately ignore any other shadows *)
+                  ((n - 1) :: List.filter ~f:(fun x -> x > n - 1) next_shadows)
+                  ((x, y) :: result)
               else ray (x + dx, y + dy) next_shadows result)
   in
   ray (x, y) [] []
