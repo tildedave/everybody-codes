@@ -106,9 +106,15 @@ Stdio.print_endline
    | "2026", "quest5", "1" -> Int.to_string @@ Y2026.Quest5.part1 lines
    | "2026", "quest5", "2" -> Int.to_string @@ Y2026.Quest5.part2 lines
    | "2026", "quest5", "3" -> Int.to_string @@ Y2026.Quest5.part3 lines
-   | "2026", "quest6", "1" -> Int.to_string @@ Y2026.Quest6.part1 lines
-   | "2026", "quest6", "2" -> Int.to_string @@ Y2026.Quest6.part2 lines
-   | "2026", "quest6", "3" -> Int.to_string @@ Y2026.Quest6.part3 lines
+   | "2026", "quest6", p ->
+       let f =
+         match p with
+         | "1" -> Y2026.Quest6.part1
+         | "2" -> Y2026.Quest6.part2
+         | "3" -> Y2026.Quest6.part3
+         | _ -> failwith "impossible"
+       in
+       Int.to_string @@ f lines
    | "2026", "quest7", p ->
        let f =
          match p with
@@ -124,6 +130,15 @@ Stdio.print_endline
          | "1" -> Y2026.Quest8.part1
          | "2" -> Y2026.Quest8.part2
          | "3" -> Y2026.Quest8.part3
+         | _ -> failwith "impossible"
+       in
+       Int.to_string @@ f lines
+   | "2026", "quest9", p ->
+       let f =
+         match p with
+         | "1" -> Y2026.Quest9.part1
+         | "2" -> Y2026.Quest9.part2
+         | "3" -> Y2026.Quest9.part3
          | _ -> failwith "impossible"
        in
        Int.to_string @@ f lines
