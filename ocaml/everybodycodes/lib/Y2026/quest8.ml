@@ -126,8 +126,8 @@ let part3 l =
     let results =
       starts |> List.map ~f:(trace_shadow (bounds, m) delta) |> List.concat
     in
-    Stdio.printf "----- %d -----\n\n" (List.length results);
-    _print_result bounds m results;
+    (* Stdio.printf "----- %d -----\n\n" (List.length results);
+    _print_result bounds m results; *)
     let next_m, new_seeds = step_results m results in
     let next_seeds, new_ents = step_seeds seeds in
     Some
@@ -144,7 +144,6 @@ let part3 l =
   Sequence.unfold ~init:(m, Map.empty (module IntPair_Comparator), 0) ~f:step
   |> Sequence.fold_until ~init:(0, 0)
        ~f:(fun (total_warriors_seen, total_energy) (new_warriors, energy) ->
-         Stdio.printf "(%d %d)\n" new_warriors energy;
          if total_warriors_seen + new_warriors >= 100000 then
            Stop (total_energy + energy)
          else
