@@ -102,7 +102,7 @@ let step_seeds =
         Map.empty (module IntPair_Comparator) )
     ~f:(fun ~key:coords ~data:num_left (acc_m, new_ents) ->
       match num_left with
-      | 0 -> (acc_m, Map.add_exn new_ents ~key:coords ~data:(Some 1))
+      | 1 -> (acc_m, Map.add_exn new_ents ~key:coords ~data:(Some 1))
       | n -> (Map.add_exn acc_m ~key:coords ~data:(n - 1), new_ents))
 
 (* convert map into new map + new seeds *)
