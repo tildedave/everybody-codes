@@ -12,7 +12,7 @@ let rec grow ~growth plant =
   match plant with
   | Segment n ->
       if equal (n + 1) growth then
-        let new_size = growth / 2 in
+        let new_size = (growth - 1) / 2 in
         (* split *)
         Branch (Segment new_size, Segment 1, Segment new_size)
       else Segment (n + 1)
@@ -24,18 +24,40 @@ let rec total_size plant =
   | Segment n -> n
   | Branch (t1, t2, t3) -> total_size t1 + total_size t2 + total_size t3 + 1
 
-(* OK so we overcount total_leaves since each branch has a "down" segment *)
+(* based on this we can see: *)
+(* total answer is 2 * # of segments - 3 * # of splits - 1 *)
+(* 27 segments * 2 - 3 * 13 - 1 = 14 ---> correct *)
 
-let rec total_leaves plant =
-  match plant with
-  | Segment _ -> 1
-  | Branch (t1, t2, t3) ->
-      List.fold ~init:0 ~f:( + )
-        [
-          (match t1 with Segment _ -> 1 | _ -> total_leaves t1 - 1);
-          (match t2 with Segment _ -> 1 | _ -> total_leaves t2 - 1);
-          (match t3 with Segment _ -> 1 | _ -> total_leaves t3 - 1);
-        ]
+let _total_leaves plant =
+  let rec walk plant =
+    match plant with
+    | Segment _ -> 2
+    | Branch (t1, t2, t3) ->
+        List.fold ~init:0 ~f:( + ) [ walk t1 - 1; walk t2 - 1; walk t3 - 1 ]
+  in
+  walk plant - 1
+
+let grow2 ~growth (segments, num_splits) =
+  Map.fold segments
+    ~init:(Map.empty (module Int), num_splits)
+    ~f:(fun ~key:size ~data:count (next_segments, num_splits) ->
+      if equal (size + 1) growth then
+        let next =
+          Map.update
+            (Map.update next_segments 1
+               ~f:(Option.value_map ~default:count ~f:(( + ) count)))
+            ((growth - 1) / 2)
+            ~f:(Option.value_map ~default:(2 * count) ~f:(( + ) (2 * count)))
+        in
+        (next, num_splits + count)
+      else
+        ( Map.update next_segments (size + 1)
+            ~f:(Option.value_map ~default:count ~f:(( + ) count)),
+          num_splits ))
+
+let total_leaves' (segments, num_splits) =
+  (2 * List.sum (module Int) ~f:Fn.id (Map.data segments))
+  - (3 * num_splits) - 1
 
 let grow_seq ~growth =
   Sequence.unfold ~init:(Segment 0) ~f:(fun p -> Some (p, grow ~growth p))
@@ -70,22 +92,30 @@ let example =
 
 let%test_unit "part1" = [%test_eq: int] 27 (part1 example)
 
+let grow2_seq ~growth =
+  Sequence.unfold
+    ~f:(fun trees -> Some (trees, grow2 ~growth trees))
+    ~init:(Map.singleton (module Int) 1 1, 0)
+
 let part2 =
   List.sum
     (module Int)
     ~f:(fun s ->
       let growth, limit = parse_line s in
-      stopping_time (Sequence.map ~f:total_leaves (grow_seq ~growth)) ~limit)
-
-(* I don't understand how this is wrong but my answer is right *)
-let%test_unit "total leaves seq" =
-  [%test_eq: int list]
-    [ 1; 1; 1; 2; 2; 5; 5; 14 ]
-    (Sequence.to_list
-       (Sequence.take (Sequence.map ~f:total_leaves (grow_seq ~growth:3)) 7))
+      stopping_time (Sequence.map ~f:total_leaves' (grow2_seq ~growth)) ~limit
+      + 1)
 
 let%test_unit "part2" = [%test_eq: int] 42 (part2 example)
 
-(* OK as expected part3 needs a closed form solution *)
+(* OK as expected, must be smarter for part 3 *)
+(* idea will be to skip all the parts where we're not splitting *)
+
+let _print_map m =
+  List.iter
+    ~f:(fun (s, c) -> Stdio.printf "size %d has %d count\n" s c)
+    (Map.to_alist m)
+
+(* how many segments?  we know that through simulation *)
+(* how many splits?  we will need to keep track of that since splits are not uniform *)
 
 let part3 _ = 1
