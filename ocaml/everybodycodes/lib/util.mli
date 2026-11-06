@@ -42,7 +42,7 @@ val grid_all_coords : grid -> (int * int) list
 val grid_find : grid -> f:(char -> bool) -> (int * int) option
 val grid_find_all : grid -> f:(char -> bool) -> (int * int) list
 
-val num_of_char : char -> int
+val char_to_int : char -> int
 
 type tuple = int * int
 val equal_tuple: tuple -> tuple -> bool

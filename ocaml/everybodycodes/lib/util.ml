@@ -137,7 +137,7 @@ let grid_all_coords grid =
 let grid_find_all grid ~f =
   List.filter ~f:(fun c -> f (grid_at grid c)) (grid_all_coords grid)
 
-let num_of_char ch = Char.to_int ch - 48
+let char_to_int ch = Char.to_int ch - 48
 
 type tuple = int * int [@@deriving eq, compare, show, sexp_of]
 

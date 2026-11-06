@@ -507,7 +507,7 @@ let rec floop_fill grid sq die acc seen =
   | false ->
       let result, next_die = roll_die die in
       let acc, seen =
-        if num_of_char (grid_at grid sq) <> result then (acc, seen)
+        if char_to_int (grid_at grid sq) <> result then (acc, seen)
         else
           (* we survive and can go in any direction *)
           List.fold

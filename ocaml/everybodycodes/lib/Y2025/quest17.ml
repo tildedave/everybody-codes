@@ -15,7 +15,7 @@ let num_destroyed r destroyed grid =
       if equal_tuple (xc, yc) (xv, yv) then (count, destroyed)
       else if Set.mem destroyed (xc, yc) then (count, destroyed)
       else if in_volcano_radius (xv, yv) (xc, yc) r then
-        (count + num_of_char ch, Set.add destroyed (xc, yc))
+        (count + char_to_int ch, Set.add destroyed (xc, yc))
       else (count, destroyed))
 
 let destruction_sequence grid =
@@ -146,7 +146,7 @@ let neighbors grid vcoords { position; time; progress; closest_radius } =
         None
       else
         let time_used =
-          match grid_at grid ncoords with 'S' -> 0 | ch -> num_of_char ch
+          match grid_at grid ncoords with 'S' -> 0 | ch -> char_to_int ch
         in
         let next =
           {
