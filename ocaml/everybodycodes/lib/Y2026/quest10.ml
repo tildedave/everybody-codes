@@ -337,33 +337,18 @@ let _move_seq ~explode_at g m =
 let iterated_ghost_seq ~explode_at l =
   let g, m = parse_lines l in
   Sequence.unfold ~init:(0, m) ~f:(fun (t, m) ->
-      Stdio.printf "t= %d\n%!" t;
-      Out_channel.flush Stdio.stdout;
       if equal (Set.length (all_ghosts m)) 0 then None
       else
         let m', di, original, dj, looped =
           find_repeat (_move_seq ~explode_at g m)
         in
-        Stdio.printf "repeat found, di= %d dj=%d\n%!" di dj;
-        Out_channel.flush Stdio.stdout;
         let deltas = collision_deltas original looped in
         let num_cycles = num_cycles_to_explode m' deltas ~explode_at in
-        Stdio.printf "we should advance %d\n" num_cycles;
-        Out_channel.flush Stdio.stdout;
         let next_m' = advance m' deltas num_cycles in
-        (* then we need to advance to the next explosion .... how *)
-        (* OK this will be inefficient but we can just count the ghosts *)
-        (* we can change the fold to be over a struct after this *)
         let orig_ghost_count = Set.length (all_ghosts next_m') in
-        Stdio.printf "after advance\n";
-        _print_ghosts (all_ghosts next_m');
-        Out_channel.flush Stdio.stdout;
         let t_explode, m' =
           Sequence.fold_until ~init:0
             ~f:(fun i m ->
-              (* Stdio.printf "%d\n%!" i;
-              _print_ghosts (all_ghosts m);
-              Out_channel.flush Stdio.stdout; *)
               if equal (Set.length (all_ghosts m)) orig_ghost_count then
                 Continue (i + 1)
               else Stop (i, m))
@@ -373,29 +358,10 @@ let iterated_ghost_seq ~explode_at l =
         let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
         Some (next_t, (next_t, m')))
 
-(* then, advance until explosion *)
-(* then, yield *)
-
-(* let%test_unit "find_repeat" =
-  [%test_eq: int] 1
-    (let i, original_ghosts, j, new_ghosts =
-       find_repeat (move_seq ~explode_at:p3_explode p3_example)
-     in
-     Stdio.printf "loop from %d to %d\n" i j;
-     _print_ghosts original_ghosts;
-     Stdio.printf "----\n";
-     _print_ghosts new_ghosts;
-     Stdio.printf "collision deltas:\n";
-     let cd = collision_deltas original_ghosts new_ghosts in
-     Map.iteri cd ~f:(fun ~key ~data ->
-         Stdio.printf "\t%s -> %d\n" (show_ghost key) data);
-     (* OK this works *)
-     i) *)
-
 (* let%test_unit "iterated_ghost_seq" =
   [%test_eq: int list]
     [
-      666666666760;
+      666666666760;   -- my sequence doesn't include all these steps
       666666666796;
       999999999994;
       1000000000000;
