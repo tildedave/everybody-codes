@@ -1,3 +1,7 @@
+[@@@ocaml.warning "-32"]
+[@@@ocaml.warning "-26"]
+[@@@ocaml.warning "-27"]
+
 open Base
 open Util
 
@@ -16,7 +20,58 @@ let example =
     "###########";
   ]
 
-type ghost = { direction : int * int; num_collisions : int }
+type ghost = {
+  id : int;
+  direction : int * int;
+  position : int * int;
+  num_collisions : (int[@compare.ignore]);
+}
+[@@deriving compare, sexp_of, show]
+
+module Ghost = struct
+  type t = ghost [@@deriving sexp_of, show, compare]
+
+  (* don't use num_collisions in position hash *)
+  (* let hash g = Hashtbl.hash (g.id, g.direction, g.position) *)
+end
+
+module GhostComparator = struct
+  include Ghost
+  include Base.Comparator.Make (Ghost)
+end
+
+let _ = Set.empty (module GhostComparator)
+
+module GhostSet = struct
+  type t = Set.M(GhostComparator).t [@@deriving compare, sexp_of]
+end
+
+module GhostSetComparator = struct
+  include GhostSet
+  include Base.Comparator.Make (GhostSet)
+end
+
+let%test_unit "ghost comparator ignores collisions" =
+  let ghost =
+    { id = 1; position = (0, 0); direction = (1, 0); num_collisions = 1 }
+  in
+  [%test_eq: bool] true
+    ((Set.mem (Set.singleton (module GhostComparator) ghost))
+       { ghost with num_collisions = 2 })
+
+let%test_unit "ghost comparator does not ignore position changes" =
+  let ghost =
+    { id = 1; position = (0, 0); direction = (1, 0); num_collisions = 1 }
+  in
+  [%test_eq: bool] false
+    ((Set.mem (Set.singleton (module GhostComparator) ghost))
+       { ghost with position = (1, 0) })
+
+let id_ref = ref 0
+
+let new_id () =
+  id_ref := !id_ref + 1;
+  !id_ref
 
 let parse_lines l =
   let g = to_grid l in
@@ -27,16 +82,40 @@ let parse_lines l =
         match ch with
         | '>' ->
             Map.add_multi acc ~key:coords
-              ~data:{ direction = (1, 0); num_collisions = 0 }
+              ~data:
+                {
+                  id = new_id ();
+                  position = coords;
+                  direction = (1, 0);
+                  num_collisions = 0;
+                }
         | '<' ->
             Map.add_multi acc ~key:coords
-              ~data:{ direction = (-1, 0); num_collisions = 0 }
+              ~data:
+                {
+                  id = new_id ();
+                  position = coords;
+                  direction = (-1, 0);
+                  num_collisions = 0;
+                }
         | '^' ->
             Map.add_multi acc ~key:coords
-              ~data:{ direction = (0, -1); num_collisions = 0 }
+              ~data:
+                {
+                  id = new_id ();
+                  position = coords;
+                  direction = (0, -1);
+                  num_collisions = 0;
+                }
         | 'v' ->
             Map.add_multi acc ~key:coords
-              ~data:{ direction = (0, 1); num_collisions = 0 }
+              ~data:
+                {
+                  id = new_id ();
+                  position = coords;
+                  direction = (0, 1);
+                  num_collisions = 0;
+                }
         | _ -> acc)
       g )
 
@@ -52,7 +131,12 @@ let flip ghost ~explode_at =
   if equal (ghost.num_collisions + 1) explode_at then None
   else
     let dx, dy = ghost.direction in
-    Some { direction = (-dx, -dy); num_collisions = ghost.num_collisions + 1 }
+    Some
+      {
+        ghost with
+        direction = (-dx, -dy);
+        num_collisions = ghost.num_collisions + 1;
+      }
 
 let _print_map g m =
   for y = 0 to snd g.bounds - 1 do
@@ -90,10 +174,13 @@ let move g m ~explode_at =
               Map.add_multi acc_m ~key:(x, y)
                 ~data:
                   {
+                    ghost with
                     direction = rotate_right (dx, dy);
                     num_collisions = ghost.num_collisions + 1;
                   }
-          else Map.add_multi acc_m ~key:(nx, ny) ~data:ghost)
+          else
+            Map.add_multi acc_m ~key:(nx, ny)
+              ~data:{ ghost with position = (nx, ny) })
         ghosts)
     m
 
@@ -147,4 +234,203 @@ let%test_unit "part2" = [%test_eq: int] 53 (_part2 ~explode_at:10 example)
 let%test_unit "part2 (other example)" =
   [%test_eq: int] 50000 (_part2 ~explode_at:10000 example)
 
-let part3 _ = 1
+(* part3 standard ramp up - I assume the state of the simulation repeats over and over *)
+(* can do the silly thing and find the repeats *)
+(* to string may not preserve direction, so we need something a little smarter for caching *)
+
+let all_ghosts m =
+  List.fold
+    ~init:(Set.empty (module GhostComparator))
+    (Map.data m)
+    ~f:(fun acc -> List.fold ~f:Set.add ~init:acc)
+
+let find_repeat seq =
+  Sequence.fold_until
+    ~init:(0, Map.empty (module GhostSetComparator))
+    ~f:(fun (i, acc) m ->
+      let current_ghosts = all_ghosts m in
+      match Map.find acc current_ghosts with
+      | Some (j, m') ->
+          (* must find the original key I guess *)
+          let original_ghosts =
+            List.find_exn
+              ~f:(fun gs -> equal (GhostSet.compare gs current_ghosts) 0)
+              (Map.keys acc)
+          in
+          Stop (m', j, original_ghosts, i, current_ghosts)
+      | None ->
+          Continue (i + 1, Map.add_exn acc ~key:current_ghosts ~data:(i, m)))
+    ~finish:(fun _ -> failwith "impossible")
+    seq
+
+let p3_explode = 1000000000000
+
+let p3_example =
+  [
+    "#######################";
+    "###########.###########";
+    "#######.^>.^.<^.#######";
+    "#####..<.>.v^>>^^<#####";
+    "####..v<^v.>.>v..^.####";
+    "###.................###";
+    "###.................###";
+    "##.......<...<.<....>##";
+    "##...v....>....v.v<.^##";
+    "##........###........##";
+    "##v......#####.......##";
+    "#.<......#####......>.#";
+    "##.......#####.......##";
+    "##........###........##";
+    "##...................##";
+    "##...................##";
+    "###.................###";
+    "###.................###";
+    "####...............####";
+    "#####.............#####";
+    "#######....v....#######";
+    "###########.###########";
+    "#######################";
+  ]
+
+let _print_ghosts = Set.iter ~f:(fun g -> Stdio.printf "%s\n" (show_ghost g))
+
+let collision_deltas original_ghosts new_ghosts =
+  Set.fold
+    ~init:(Map.empty (module GhostComparator))
+    ~f:(fun acc g ->
+      Map.add_exn acc ~key:g
+        ~data:
+          ((Set.find_exn new_ghosts ~f:(fun g' -> equal (compare_ghost g' g) 0))
+             .num_collisions - g.num_collisions))
+    original_ghosts
+
+let num_cycles_to_explode m deltas ~explode_at =
+  all_ghosts m
+  |> Set.map
+       (module Int)
+       ~f:(fun ghost ->
+         let ghost_delta = Map.find_exn deltas ghost in
+         (* need ghost.num_collisions + ghost_delta * n >= explode_at  - solve for n *)
+         (* n = (explode_at - ghost.num_collisions) / ghost_delta *)
+         (* technically it's the upper float of this *)
+         let result = (explode_at - ghost.num_collisions) / ghost_delta in
+         if equal ((explode_at - ghost.num_collisions) % ghost_delta) 0 then
+           result - 1
+         else result)
+  |> Set.min_elt |> Option.value_exn
+
+let advance m deltas num_cycles =
+  Map.map m
+    ~f:
+      (List.map ~f:(fun ghost ->
+           let delta = Map.find_exn deltas ghost in
+           {
+             ghost with
+             num_collisions = ghost.num_collisions + (delta * num_cycles);
+           }))
+
+let _move_seq ~explode_at g m =
+  Sequence.unfold ~init:m ~f:(fun m ->
+      let next_m = m |> move ~explode_at g |> collide ~explode_at in
+      Some (m, next_m))
+
+let iterated_ghost_seq ~explode_at l =
+  let g, m = parse_lines l in
+  Sequence.unfold ~init:(0, m) ~f:(fun (t, m) ->
+      Stdio.printf "t= %d\n%!" t;
+      Out_channel.flush Stdio.stdout;
+      if equal (Set.length (all_ghosts m)) 0 then None
+      else
+        let m', di, original, dj, looped =
+          find_repeat (_move_seq ~explode_at g m)
+        in
+        Stdio.printf "repeat found, di= %d dj=%d\n%!" di dj;
+        Out_channel.flush Stdio.stdout;
+        let deltas = collision_deltas original looped in
+        let num_cycles = num_cycles_to_explode m' deltas ~explode_at in
+        Stdio.printf "we should advance %d\n" num_cycles;
+        Out_channel.flush Stdio.stdout;
+        let next_m' = advance m' deltas num_cycles in
+        (* then we need to advance to the next explosion .... how *)
+        (* OK this will be inefficient but we can just count the ghosts *)
+        (* we can change the fold to be over a struct after this *)
+        let orig_ghost_count = Set.length (all_ghosts next_m') in
+        Stdio.printf "after advance\n";
+        _print_ghosts (all_ghosts next_m');
+        Out_channel.flush Stdio.stdout;
+        let t_explode, m' =
+          Sequence.fold_until ~init:0
+            ~f:(fun i m ->
+              (* Stdio.printf "%d\n%!" i;
+              _print_ghosts (all_ghosts m);
+              Out_channel.flush Stdio.stdout; *)
+              if equal (Set.length (all_ghosts m)) orig_ghost_count then
+                Continue (i + 1)
+              else Stop (i, m))
+            ~finish:(fun _ -> failwith "impossible")
+            (_move_seq ~explode_at g next_m')
+        in
+        let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
+        Some (next_t, (next_t, m')))
+
+(* then, advance until explosion *)
+(* then, yield *)
+
+(* let%test_unit "find_repeat" =
+  [%test_eq: int] 1
+    (let i, original_ghosts, j, new_ghosts =
+       find_repeat (move_seq ~explode_at:p3_explode p3_example)
+     in
+     Stdio.printf "loop from %d to %d\n" i j;
+     _print_ghosts original_ghosts;
+     Stdio.printf "----\n";
+     _print_ghosts new_ghosts;
+     Stdio.printf "collision deltas:\n";
+     let cd = collision_deltas original_ghosts new_ghosts in
+     Map.iteri cd ~f:(fun ~key ~data ->
+         Stdio.printf "\t%s -> %d\n" (show_ghost key) data);
+     (* OK this works *)
+     i) *)
+
+(* let%test_unit "iterated_ghost_seq" =
+  [%test_eq: int list]
+    [
+      666666666760;
+      666666666796;
+      999999999994;
+      1000000000000;
+      1000000000033;
+      1000000000052;
+      1000000000059;
+      1000000000060;
+      1000000000063;
+      1000000000065;
+      1000000000067;
+      1000000000070;
+      1000000000076;
+      1000000000085;
+      1000000000090;
+      1000000000096;
+      1000000000098;
+      1000000000129;
+      1000000000236;
+      1444444444455;
+      1444444444564;
+      1571428573720;
+      1716049383661;
+      1740740741644;
+      1740740741811;
+      1833333335427;
+      2208137718009;
+      5381126880052;
+      11286225837575;
+      13314695352588;
+    ]
+    (Sequence.to_list (iterated_ghost_seq ~explode_at:p3_explode p3_example)) *)
+
+let part3 l =
+  List.hd_exn
+    (Sequence.to_list_rev (iterated_ghost_seq ~explode_at:p3_explode l))
+
+let%test_unit "part3 (other example)" =
+  [%test_eq: int] 13314695352588 (part3 p3_example)
