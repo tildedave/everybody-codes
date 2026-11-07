@@ -16,6 +16,8 @@ let example =
     "###########";
   ]
 
+type ghost = { direction : int * int; num_collisions : int }
+
 let parse_lines l =
   let g = to_grid l in
   ( g,
@@ -23,10 +25,18 @@ let parse_lines l =
       ~init:(Map.empty (module IntPair_Comparator))
       ~f:(fun coords acc ch ->
         match ch with
-        | '>' -> Map.add_multi acc ~key:coords ~data:(1, 0)
-        | '<' -> Map.add_multi acc ~key:coords ~data:(-1, 0)
-        | '^' -> Map.add_multi acc ~key:coords ~data:(0, -1)
-        | 'v' -> Map.add_multi acc ~key:coords ~data:(0, 1)
+        | '>' ->
+            Map.add_multi acc ~key:coords
+              ~data:{ direction = (1, 0); num_collisions = 0 }
+        | '<' ->
+            Map.add_multi acc ~key:coords
+              ~data:{ direction = (-1, 0); num_collisions = 0 }
+        | '^' ->
+            Map.add_multi acc ~key:coords
+              ~data:{ direction = (0, -1); num_collisions = 0 }
+        | 'v' ->
+            Map.add_multi acc ~key:coords
+              ~data:{ direction = (0, 1); num_collisions = 0 }
         | _ -> acc)
       g )
 
@@ -38,7 +48,11 @@ let rotate_right (dx, dy) =
   | -1, 0 -> (0, -1)
   | _ -> failwith "invalid deltas"
 
-let flip (dx, dy) = (-dx, -dy)
+let flip ghost ~explode_at =
+  if equal (ghost.num_collisions + 1) explode_at then None
+  else
+    let dx, dy = ghost.direction in
+    Some { direction = (-dx, -dy); num_collisions = ghost.num_collisions + 1 }
 
 let _print_map g m =
   for y = 0 to snd g.bounds - 1 do
@@ -49,7 +63,7 @@ let _print_map g m =
         | None -> Stdio.printf "."
         | Some [ x ] ->
             Stdio.printf "%s"
-              (match x with
+              (match x.direction with
               | 0, -1 -> "^"
               | 0, 1 -> "v"
               | 1, 0 -> ">"
@@ -61,48 +75,76 @@ let _print_map g m =
   done;
   Stdio.printf "\n"
 
-let move g m =
+let move g m ~explode_at =
   (* _print_map g m; *)
   Map.fold
-    ~init:(0, Map.empty (module IntPair_Comparator))
-    ~f:(fun ~key:(x, y) ~data:ghosts (num_collisions, acc_m) ->
-      List.fold ~init:(num_collisions, acc_m)
-        ~f:(fun (num_collisions, acc_m) (dx, dy) ->
+    ~init:(Map.empty (module IntPair_Comparator))
+    ~f:(fun ~key:(x, y) ~data:ghosts acc_m ->
+      List.fold ~init:acc_m
+        ~f:(fun acc_m ghost ->
+          let dx, dy = ghost.direction in
           let nx, ny = (x + dx, y + dy) in
           if equal_char (grid_at g (nx, ny)) '#' then
-            ( num_collisions + 1,
-              Map.add_multi acc_m ~key:(x, y) ~data:(rotate_right (dx, dy)) )
-          else (num_collisions, Map.add_multi acc_m ~key:(nx, ny) ~data:(dx, dy)))
+            if equal (ghost.num_collisions + 1) explode_at then acc_m
+            else
+              Map.add_multi acc_m ~key:(x, y)
+                ~data:
+                  {
+                    direction = rotate_right (dx, dy);
+                    num_collisions = ghost.num_collisions + 1;
+                  }
+          else Map.add_multi acc_m ~key:(nx, ny) ~data:ghost)
         ghosts)
     m
 
-let collide (num_collisions, m) =
-  (* bleh, fix this so we're better *)
-  ( Map.fold ~init:num_collisions
-      ~f:(fun ~key:_ ~data:ghosts acc ->
-        let l = List.length ghosts in
-        if l > 1 then acc + l else acc)
-      m,
-    Map.map
-      ~f:(fun ghosts ->
-        match ghosts with
-        | [] -> failwith "impossible"
-        | [ x ] -> [ x ]
-        | _ -> List.map ~f:flip ghosts)
-      m )
+let collide ~explode_at =
+  Map.fold
+    ~init:(Map.empty (module IntPair_Comparator))
+    ~f:(fun ~key:coords ~data:ghosts next_m ->
+      match ghosts with
+      | [] -> failwith "impossible"
+      | [ _ ] -> Map.set next_m ~key:coords ~data:ghosts
+      | _ ->
+          Map.set next_m ~key:coords
+            ~data:(List.filter_map ~f:(flip ~explode_at) ghosts))
 
-let ghost_seq l =
+let total_collisions =
+  Map.sum (module Int) ~f:(List.sum (module Int) ~f:(fun g -> g.num_collisions))
+
+let move_seq ?(explode_at = 10000) l =
   let g, m = parse_lines l in
-  Sequence.unfold ~init:m ~f:(fun m -> Some (m |> move g |> collide))
+  Sequence.unfold ~init:m ~f:(fun m ->
+      let next_m = m |> move ~explode_at g |> collide ~explode_at in
+      Some (m, next_m))
+
+let collision_seq ?(explode_at = 10000) l =
+  let seq = move_seq ~explode_at l |> Sequence.map ~f:total_collisions in
+  Sequence.map ~f:(fun (before, after) -> after - before)
+  @@ Sequence.zip seq (Sequence.tl_eagerly_exn seq)
 
 let part1 l =
-  Sequence.sum (module Int) (Sequence.take (ghost_seq l) 10) ~f:Fn.id
+  Sequence.sum (module Int) (Sequence.take (collision_seq l) 10) ~f:Fn.id
 
-let%test_unit "ghost_seq" =
+let%test_unit "collision_seq" =
   [%test_eq: int list]
     [ 4; 3; 1; 1; 8; 3; 1; 3; 1; 4 ]
-    (Sequence.to_list (Sequence.take (ghost_seq example) 10))
+    (Sequence.to_list (Sequence.take (collision_seq example) 10))
 
 let%test_unit "part1" = [%test_eq: int] 29 (part1 example)
-let part2 _ = 1
+let remaining_ghosts = Map.sum (module Int) ~f:List.length
+
+let ghost_seq ?(explode_at = 10000) l =
+  move_seq ~explode_at l |> Sequence.map ~f:remaining_ghosts
+
+let _part2 ~explode_at l =
+  ghost_seq ~explode_at l
+  |> Sequence.take_while ~f:(fun n -> n > 0)
+  |> Sequence.length
+
+let part2 = _part2 ~explode_at:10000
+let%test_unit "part2" = [%test_eq: int] 53 (_part2 ~explode_at:10 example)
+
+let%test_unit "part2 (other example)" =
+  [%test_eq: int] 50000 (_part2 ~explode_at:10000 example)
+
 let part3 _ = 1
