@@ -155,7 +155,11 @@ let move g state ~explode_at =
           let num_collisions = Map.find_exn state.collisions ghost.id in
           if equal_char (grid_at g (nx, ny)) '#' then
             if equal (num_collisions + 1) explode_at then
-              { state with ghosts = Set.remove state.ghosts ghost.id }
+              {
+                state with
+                ghosts = Set.remove state.ghosts ghost.id;
+                collisions = Map.remove state.collisions ghost.id;
+              }
             else
               {
                 state with
@@ -192,7 +196,11 @@ let collide state ~explode_at =
             ~f:(fun state ghost ->
               let num_collisions = Map.find_exn state.collisions ghost.id in
               if equal (num_collisions + 1) explode_at then
-                { state with ghosts = Set.remove state.ghosts ghost.id }
+                {
+                  state with
+                  ghosts = Set.remove state.ghosts ghost.id;
+                  collisions = Map.remove state.collisions ghost.id;
+                }
               else
                 let dx, dy = ghost.direction in
                 {
@@ -355,7 +363,7 @@ let advance_to_next_explosion g ~explode_at state =
 let iterated_ghost_seq ~explode_at l =
   let g, state = parse_lines l in
   Sequence.unfold ~init:(0, state) ~f:(fun (t, initial_state) ->
-      if equal (remaining_ghosts state) 0 then None
+      if equal (remaining_ghosts initial_state) 0 then None
       else
         let state, di, new_state, dj =
           find_repeat (_move_seq ~explode_at g initial_state)
@@ -363,18 +371,39 @@ let iterated_ghost_seq ~explode_at l =
         if
           remaining_ghosts initial_state > remaining_ghosts state
           || remaining_ghosts state > remaining_ghosts new_state
-        then
+        then (
+          Stdio.printf "[%d] no advance - just forward to next explosion\n" t;
+          Out_channel.flush Stdio.stdout;
+          Stdio.printf "ghosts before %s\n"
+            (String.concat ~sep:","
+               (List.map ~f:Int.to_string (Set.to_list initial_state.ghosts)));
           let t_explode, state' =
             advance_to_next_explosion g ~explode_at initial_state
           in
+          Stdio.printf "ghosts after %s\n"
+            (String.concat ~sep:","
+               (List.map ~f:Int.to_string (Set.to_list state'.ghosts)));
           let next_t = t + t_explode in
-          Some (next_t, (next_t, state'))
+          Some (next_t, (next_t, state')))
         else (
           Stdio.printf "[%d] found repeat %d -> %d\n" t di dj;
           Out_channel.flush Stdio.stdout;
+          Stdio.printf "ghosts at repeat start %s\n"
+            (String.concat ~sep:","
+               (List.map ~f:Int.to_string (Set.to_list state.ghosts)));
+          Stdio.printf "ghosts at repeat end   %s\n"
+            (String.concat ~sep:","
+               (List.map ~f:Int.to_string (Set.to_list new_state.ghosts)));
           let deltas = collision_deltas state new_state in
           let num_cycles = num_cycles_to_explode state deltas ~explode_at in
+          Stdio.printf "deltas   %s\n"
+            (String.concat ~sep:", "
+               (List.map
+                  ~f:(fun (gid, d) -> Printf.sprintf "%d -> %d" gid d)
+                  (Map.to_alist deltas)));
           let next_state' = advance state deltas num_cycles in
+          Stdio.printf "[%d] advanced to %d\n" t
+            (t + di + (num_cycles * (dj - di)));
           let t_explode, state' =
             advance_to_next_explosion g ~explode_at next_state'
           in
