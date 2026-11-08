@@ -362,53 +362,30 @@ let advance_to_next_explosion g ~explode_at state =
 
 let iterated_ghost_seq ~explode_at l =
   let g, state = parse_lines l in
-  Sequence.unfold ~init:(0, state) ~f:(fun (t, initial_state) ->
-      if equal (remaining_ghosts initial_state) 0 then None
+  Sequence.unfold ~init:(0, state) ~f:(fun (t, state) ->
+      let ghosts_left = remaining_ghosts state in
+      if equal ghosts_left 0 then None
       else
         let state, di, new_state, dj =
-          find_repeat (_move_seq ~explode_at g initial_state)
+          find_repeat (_move_seq ~explode_at g state)
         in
         if
-          remaining_ghosts initial_state > remaining_ghosts state
+          remaining_ghosts state > remaining_ghosts state
           || remaining_ghosts state > remaining_ghosts new_state
-        then (
-          Stdio.printf "[%d] no advance - just forward to next explosion\n" t;
-          Out_channel.flush Stdio.stdout;
-          Stdio.printf "ghosts before %s\n"
-            (String.concat ~sep:","
-               (List.map ~f:Int.to_string (Set.to_list initial_state.ghosts)));
-          let t_explode, state' =
-            advance_to_next_explosion g ~explode_at initial_state
+        then
+          let t_explode, state =
+            advance_to_next_explosion g ~explode_at state
           in
-          Stdio.printf "ghosts after %s\n"
-            (String.concat ~sep:","
-               (List.map ~f:Int.to_string (Set.to_list state'.ghosts)));
-          let next_t = t + t_explode in
-          Some (next_t, (next_t, state')))
-        else (
-          Stdio.printf "[%d] found repeat %d -> %d\n" t di dj;
-          Out_channel.flush Stdio.stdout;
-          Stdio.printf "ghosts at repeat start %s\n"
-            (String.concat ~sep:","
-               (List.map ~f:Int.to_string (Set.to_list state.ghosts)));
-          Stdio.printf "ghosts at repeat end   %s\n"
-            (String.concat ~sep:","
-               (List.map ~f:Int.to_string (Set.to_list new_state.ghosts)));
+          Some (t + t_explode, (t + t_explode, state))
+        else
           let deltas = collision_deltas state new_state in
           let num_cycles = num_cycles_to_explode state deltas ~explode_at in
-          Stdio.printf "deltas   %s\n"
-            (String.concat ~sep:", "
-               (List.map
-                  ~f:(fun (gid, d) -> Printf.sprintf "%d -> %d" gid d)
-                  (Map.to_alist deltas)));
-          let next_state' = advance state deltas num_cycles in
-          Stdio.printf "[%d] advanced to %d\n" t
-            (t + di + (num_cycles * (dj - di)));
-          let t_explode, state' =
-            advance_to_next_explosion g ~explode_at next_state'
+          let t_explode, state =
+            advance_to_next_explosion g ~explode_at
+              (advance state deltas num_cycles)
           in
           let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
-          Some (next_t, (next_t, state'))))
+          Some (next_t, (next_t, state)))
 
 (* let%test_unit "iterated_ghost_seq" =
   [%test_eq: int list]
