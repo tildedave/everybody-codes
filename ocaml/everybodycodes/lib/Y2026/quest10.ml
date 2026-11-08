@@ -343,30 +343,43 @@ let _move_seq ~explode_at g m =
       let next_m = m |> move ~explode_at g |> collide ~explode_at in
       Some (m, next_m))
 
+let advance_to_next_explosion g ~explode_at state =
+  let orig_ghost_count = remaining_ghosts state in
+  Sequence.fold_until ~init:0
+    ~f:(fun i state ->
+      if equal (remaining_ghosts state) orig_ghost_count then Continue (i + 1)
+      else Stop (i, state))
+    ~finish:(fun _ -> failwith "impossible")
+    (_move_seq ~explode_at g state)
+
 let iterated_ghost_seq ~explode_at l =
   let g, state = parse_lines l in
-  Sequence.unfold ~init:(0, state) ~f:(fun (t, m) ->
+  Sequence.unfold ~init:(0, state) ~f:(fun (t, initial_state) ->
       if equal (remaining_ghosts state) 0 then None
       else
         let state, di, new_state, dj =
-          find_repeat (_move_seq ~explode_at g state)
+          find_repeat (_move_seq ~explode_at g initial_state)
         in
-        Stdio.printf "found repeat %d -> %d\n" di dj;
-        let deltas = collision_deltas state new_state in
-        let num_cycles = num_cycles_to_explode state deltas ~explode_at in
-        let next_state' = advance state deltas num_cycles in
-        let orig_ghost_count = remaining_ghosts next_state' in
-        let t_explode, m' =
-          Sequence.fold_until ~init:0
-            ~f:(fun i state ->
-              if equal (remaining_ghosts state) orig_ghost_count then
-                Continue (i + 1)
-              else Stop (i, state))
-            ~finish:(fun _ -> failwith "impossible")
-            (_move_seq ~explode_at g next_state')
-        in
-        let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
-        Some (next_t, (next_t, m')))
+        if
+          remaining_ghosts initial_state > remaining_ghosts state
+          || remaining_ghosts state > remaining_ghosts new_state
+        then
+          let t_explode, state' =
+            advance_to_next_explosion g ~explode_at initial_state
+          in
+          let next_t = t + t_explode in
+          Some (next_t, (next_t, state'))
+        else (
+          Stdio.printf "[%d] found repeat %d -> %d\n" t di dj;
+          Out_channel.flush Stdio.stdout;
+          let deltas = collision_deltas state new_state in
+          let num_cycles = num_cycles_to_explode state deltas ~explode_at in
+          let next_state' = advance state deltas num_cycles in
+          let t_explode, state' =
+            advance_to_next_explosion g ~explode_at next_state'
+          in
+          let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
+          Some (next_t, (next_t, state'))))
 
 (* let%test_unit "iterated_ghost_seq" =
   [%test_eq: int list]
@@ -408,5 +421,5 @@ let part3 l =
   List.hd_exn
     (Sequence.to_list_rev (iterated_ghost_seq ~explode_at:p3_explode l))
 
-(* let%test_unit "part3 (other example)" =
-  [%test_eq: int] 13314695352588 (part3 p3_example) *)
+let%test_unit "part3 (other example)" =
+  [%test_eq: int] 13314695352588 (part3 p3_example)
