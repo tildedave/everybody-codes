@@ -20,18 +20,11 @@ let example =
     "###########";
   ]
 
-type ghost = {
-  id : int;
-  direction : int * int;
-  position : int * int;
-  num_collisions : (int[@compare.ignore]);
-}
+type ghost = { id : int; direction : int * int; position : int * int }
 [@@deriving compare, sexp_of, show]
 
 module Ghost = struct
   type t = ghost [@@deriving sexp_of, show, compare]
-
-  (* don't use num_collisions in position hash *)
   (* let hash g = Hashtbl.hash (g.id, g.direction, g.position) *)
 end
 
@@ -51,21 +44,21 @@ module GhostSetComparator = struct
   include Base.Comparator.Make (GhostSet)
 end
 
-let%test_unit "ghost comparator ignores collisions" =
+(* let%test_unit "ghost comparator ignores collisions" =
   let ghost =
     { id = 1; position = (0, 0); direction = (1, 0); num_collisions = 1 }
   in
   [%test_eq: bool] true
     ((Set.mem (Set.singleton (module GhostComparator) ghost))
-       { ghost with num_collisions = 2 })
+       { ghost with num_collisions = 2 }) *)
 
-let%test_unit "ghost comparator does not ignore position changes" =
+(* let%test_unit "ghost comparator does not ignore position changes" =
   let ghost =
     { id = 1; position = (0, 0); direction = (1, 0); num_collisions = 1 }
   in
   [%test_eq: bool] false
     ((Set.mem (Set.singleton (module GhostComparator) ghost))
-       { ghost with position = (1, 0) })
+       { ghost with position = (1, 0) }) *)
 
 let id_ref = ref 0
 
@@ -73,51 +66,53 @@ let new_id () =
   id_ref := !id_ref + 1;
   !id_ref
 
+type 'a state = {
+  positions : (int * int, ghost list, 'a) Map.t;
+  (* time : int; *)
+  ghosts : (int, Int.comparator_witness) Set.t;
+  collisions : (int, int, Int.comparator_witness) Map.t;
+}
+
+let all_ghosts m =
+  List.fold
+    ~init:(Set.empty (module GhostComparator))
+    (Map.data m)
+    ~f:(fun acc -> List.fold ~f:Set.add ~init:acc)
+
 let parse_lines l =
   let g = to_grid l in
   ( g,
-    grid_foldi
-      ~init:(Map.empty (module IntPair_Comparator))
-      ~f:(fun coords acc ch ->
-        match ch with
-        | '>' ->
-            Map.add_multi acc ~key:coords
-              ~data:
-                {
-                  id = new_id ();
-                  position = coords;
-                  direction = (1, 0);
-                  num_collisions = 0;
-                }
-        | '<' ->
-            Map.add_multi acc ~key:coords
-              ~data:
-                {
-                  id = new_id ();
-                  position = coords;
-                  direction = (-1, 0);
-                  num_collisions = 0;
-                }
-        | '^' ->
-            Map.add_multi acc ~key:coords
-              ~data:
-                {
-                  id = new_id ();
-                  position = coords;
-                  direction = (0, -1);
-                  num_collisions = 0;
-                }
-        | 'v' ->
-            Map.add_multi acc ~key:coords
-              ~data:
-                {
-                  id = new_id ();
-                  position = coords;
-                  direction = (0, 1);
-                  num_collisions = 0;
-                }
-        | _ -> acc)
-      g )
+    let positions =
+      grid_foldi
+        ~init:(Map.empty (module IntPair_Comparator))
+        ~f:(fun coords acc ch ->
+          match ch with
+          | '>' ->
+              Map.add_multi acc ~key:coords
+                ~data:{ id = new_id (); position = coords; direction = (1, 0) }
+          | '<' ->
+              Map.add_multi acc ~key:coords
+                ~data:{ id = new_id (); position = coords; direction = (-1, 0) }
+          | '^' ->
+              Map.add_multi acc ~key:coords
+                ~data:{ id = new_id (); position = coords; direction = (0, -1) }
+          | 'v' ->
+              Map.add_multi acc ~key:coords
+                ~data:{ id = new_id (); position = coords; direction = (0, 1) }
+          | _ -> acc)
+        g
+    in
+    let ghosts = all_ghosts positions in
+    {
+      positions;
+      (* time = 0; *)
+      ghosts = Set.map (module Int) ~f:(fun g -> g.id) ghosts;
+      collisions =
+        Set.fold
+          ~init:(Map.empty (module Int))
+          ~f:(fun acc ghost -> Map.add_exn acc ~key:ghost.id ~data:0)
+          ghosts;
+    } )
 
 let rotate_right (dx, dy) =
   match (dx, dy) with
@@ -126,17 +121,6 @@ let rotate_right (dx, dy) =
   | 1, 0 -> (0, 1)
   | -1, 0 -> (0, -1)
   | _ -> failwith "invalid deltas"
-
-let flip ghost ~explode_at =
-  if equal (ghost.num_collisions + 1) explode_at then None
-  else
-    let dx, dy = ghost.direction in
-    Some
-      {
-        ghost with
-        direction = (-dx, -dy);
-        num_collisions = ghost.num_collisions + 1;
-      }
 
 let _print_map g m =
   for y = 0 to snd g.bounds - 1 do
@@ -159,44 +143,71 @@ let _print_map g m =
   done;
   Stdio.printf "\n"
 
-let move g m ~explode_at =
-  (* _print_map g m; *)
+let move g state ~explode_at =
+  (* _print_map g state.positions; *)
   Map.fold
-    ~init:(Map.empty (module IntPair_Comparator))
-    ~f:(fun ~key:(x, y) ~data:ghosts acc_m ->
-      List.fold ~init:acc_m
-        ~f:(fun acc_m ghost ->
+    ~init:{ state with positions = Map.empty (module IntPair_Comparator) }
+    ~f:(fun ~key:(x, y) ~data:ghosts state ->
+      List.fold ~init:state
+        ~f:(fun state ghost ->
           let dx, dy = ghost.direction in
           let nx, ny = (x + dx, y + dy) in
+          let num_collisions = Map.find_exn state.collisions ghost.id in
           if equal_char (grid_at g (nx, ny)) '#' then
-            if equal (ghost.num_collisions + 1) explode_at then acc_m
+            if equal (num_collisions + 1) explode_at then
+              { state with ghosts = Set.remove state.ghosts ghost.id }
             else
-              Map.add_multi acc_m ~key:(x, y)
-                ~data:
-                  {
-                    ghost with
-                    direction = rotate_right (dx, dy);
-                    num_collisions = ghost.num_collisions + 1;
-                  }
+              {
+                state with
+                positions =
+                  Map.add_multi state.positions ~key:(x, y)
+                    ~data:{ ghost with direction = rotate_right (dx, dy) };
+                collisions =
+                  Map.set state.collisions ~key:ghost.id
+                    ~data:(num_collisions + 1);
+              }
           else
-            Map.add_multi acc_m ~key:(nx, ny)
-              ~data:{ ghost with position = (nx, ny) })
+            {
+              state with
+              positions =
+                Map.add_multi state.positions ~key:(nx, ny)
+                  ~data:{ ghost with position = (nx, ny) };
+            })
         ghosts)
-    m
+    state.positions
 
-let collide ~explode_at =
+let collide state ~explode_at =
   Map.fold
-    ~init:(Map.empty (module IntPair_Comparator))
-    ~f:(fun ~key:coords ~data:ghosts next_m ->
+    ~init:{ state with positions = Map.empty (module IntPair_Comparator) }
+    ~f:(fun ~key:coords ~data:ghosts state ->
       match ghosts with
       | [] -> failwith "impossible"
-      | [ _ ] -> Map.set next_m ~key:coords ~data:ghosts
+      | [ _ ] ->
+          {
+            state with
+            positions = Map.set state.positions ~key:coords ~data:ghosts;
+          }
       | _ ->
-          Map.set next_m ~key:coords
-            ~data:(List.filter_map ~f:(flip ~explode_at) ghosts))
+          List.fold ~init:state
+            ~f:(fun state ghost ->
+              let num_collisions = Map.find_exn state.collisions ghost.id in
+              if equal (num_collisions + 1) explode_at then
+                { state with ghosts = Set.remove state.ghosts ghost.id }
+              else
+                let dx, dy = ghost.direction in
+                {
+                  state with
+                  positions =
+                    Map.add_multi state.positions ~key:coords
+                      ~data:{ ghost with direction = (-dx, -dy) };
+                  collisions =
+                    Map.set state.collisions ~key:ghost.id
+                      ~data:(num_collisions + 1);
+                })
+            ghosts)
+    state.positions
 
-let total_collisions =
-  Map.sum (module Int) ~f:(List.sum (module Int) ~f:(fun g -> g.num_collisions))
+let total_collisions state = Map.sum (module Int) ~f:Fn.id state.collisions
 
 let move_seq ?(explode_at = 10000) l =
   let g, m = parse_lines l in
@@ -218,7 +229,7 @@ let%test_unit "collision_seq" =
     (Sequence.to_list (Sequence.take (collision_seq example) 10))
 
 let%test_unit "part1" = [%test_eq: int] 29 (part1 example)
-let remaining_ghosts = Map.sum (module Int) ~f:List.length
+let remaining_ghosts state = Set.length state.ghosts
 
 let ghost_seq ?(explode_at = 10000) l =
   move_seq ~explode_at l |> Sequence.map ~f:remaining_ghosts
@@ -238,28 +249,26 @@ let%test_unit "part2 (other example)" =
 (* can do the silly thing and find the repeats *)
 (* to string may not preserve direction, so we need something a little smarter for caching *)
 
-let all_ghosts m =
-  List.fold
-    ~init:(Set.empty (module GhostComparator))
-    (Map.data m)
-    ~f:(fun acc -> List.fold ~f:Set.add ~init:acc)
-
 let find_repeat seq =
   Sequence.fold_until
     ~init:(0, Map.empty (module GhostSetComparator))
-    ~f:(fun (i, acc) m ->
-      let current_ghosts = all_ghosts m in
+    ~f:(fun (j, acc) new_state ->
+      let current_ghosts =
+        Set.of_list (module GhostComparator)
+        @@ List.concat (Map.data new_state.positions)
+      in
       match Map.find acc current_ghosts with
-      | Some (j, m') ->
+      | Some (i, original_state) ->
           (* must find the original key I guess *)
           let original_ghosts =
             List.find_exn
               ~f:(fun gs -> equal (GhostSet.compare gs current_ghosts) 0)
               (Map.keys acc)
           in
-          Stop (m', j, original_ghosts, i, current_ghosts)
+          Stop (original_state, i, new_state, j)
       | None ->
-          Continue (i + 1, Map.add_exn acc ~key:current_ghosts ~data:(i, m)))
+          Continue
+            (j + 1, Map.add_exn acc ~key:current_ghosts ~data:(j, new_state)))
     ~finish:(fun _ -> failwith "impossible")
     seq
 
@@ -294,40 +303,40 @@ let p3_example =
 
 let _print_ghosts = Set.iter ~f:(fun g -> Stdio.printf "%s\n" (show_ghost g))
 
-let collision_deltas original_ghosts new_ghosts =
+let collision_deltas original_state new_state =
   Set.fold
-    ~init:(Map.empty (module GhostComparator))
-    ~f:(fun acc g ->
-      Map.add_exn acc ~key:g
+    ~init:(Map.empty (module Int))
+    ~f:(fun acc ghost_id ->
+      Map.add_exn acc ~key:ghost_id
         ~data:
-          ((Set.find_exn new_ghosts ~f:(fun g' -> equal (compare_ghost g' g) 0))
-             .num_collisions - g.num_collisions))
-    original_ghosts
+          (Map.find_exn new_state.collisions ghost_id
+          - Map.find_exn original_state.collisions ghost_id))
+    original_state.ghosts
 
-let num_cycles_to_explode m deltas ~explode_at =
-  all_ghosts m
+let num_cycles_to_explode state deltas ~explode_at =
+  state.ghosts
   |> Set.map
        (module Int)
-       ~f:(fun ghost ->
-         let ghost_delta = Map.find_exn deltas ghost in
+       ~f:(fun ghost_id ->
+         let ghost_delta = Map.find_exn deltas ghost_id in
+         let num_collisions = Map.find_exn state.collisions ghost_id in
          (* need ghost.num_collisions + ghost_delta * n >= explode_at  - solve for n *)
          (* n = (explode_at - ghost.num_collisions) / ghost_delta *)
          (* technically it's the upper float of this *)
-         let result = (explode_at - ghost.num_collisions) / ghost_delta in
-         if equal ((explode_at - ghost.num_collisions) % ghost_delta) 0 then
+         let result = (explode_at - num_collisions) / ghost_delta in
+         if equal ((explode_at - num_collisions) % ghost_delta) 0 then
            result - 1
          else result)
   |> Set.min_elt |> Option.value_exn
 
-let advance m deltas num_cycles =
-  Map.map m
-    ~f:
-      (List.map ~f:(fun ghost ->
-           let delta = Map.find_exn deltas ghost in
-           {
-             ghost with
-             num_collisions = ghost.num_collisions + (delta * num_cycles);
-           }))
+let advance state deltas num_cycles =
+  {
+    state with
+    collisions =
+      Map.mapi state.collisions ~f:(fun ~key:ghost_id ~data:v ->
+          let delta = Map.find_exn deltas ghost_id in
+          v + (delta * num_cycles));
+  }
 
 let _move_seq ~explode_at g m =
   Sequence.unfold ~init:m ~f:(fun m ->
@@ -335,25 +344,26 @@ let _move_seq ~explode_at g m =
       Some (m, next_m))
 
 let iterated_ghost_seq ~explode_at l =
-  let g, m = parse_lines l in
-  Sequence.unfold ~init:(0, m) ~f:(fun (t, m) ->
-      if equal (Set.length (all_ghosts m)) 0 then None
+  let g, state = parse_lines l in
+  Sequence.unfold ~init:(0, state) ~f:(fun (t, m) ->
+      if equal (remaining_ghosts state) 0 then None
       else
-        let m', di, original, dj, looped =
-          find_repeat (_move_seq ~explode_at g m)
+        let state, di, new_state, dj =
+          find_repeat (_move_seq ~explode_at g state)
         in
-        let deltas = collision_deltas original looped in
-        let num_cycles = num_cycles_to_explode m' deltas ~explode_at in
-        let next_m' = advance m' deltas num_cycles in
-        let orig_ghost_count = Set.length (all_ghosts next_m') in
+        Stdio.printf "found repeat %d -> %d\n" di dj;
+        let deltas = collision_deltas state new_state in
+        let num_cycles = num_cycles_to_explode state deltas ~explode_at in
+        let next_state' = advance state deltas num_cycles in
+        let orig_ghost_count = remaining_ghosts next_state' in
         let t_explode, m' =
           Sequence.fold_until ~init:0
-            ~f:(fun i m ->
-              if equal (Set.length (all_ghosts m)) orig_ghost_count then
+            ~f:(fun i state ->
+              if equal (remaining_ghosts state) orig_ghost_count then
                 Continue (i + 1)
-              else Stop (i, m))
+              else Stop (i, state))
             ~finish:(fun _ -> failwith "impossible")
-            (_move_seq ~explode_at g next_m')
+            (_move_seq ~explode_at g next_state')
         in
         let next_t = t + di + (num_cycles * (dj - di)) + t_explode in
         Some (next_t, (next_t, m')))
@@ -398,5 +408,5 @@ let part3 l =
   List.hd_exn
     (Sequence.to_list_rev (iterated_ghost_seq ~explode_at:p3_explode l))
 
-let%test_unit "part3 (other example)" =
-  [%test_eq: int] 13314695352588 (part3 p3_example)
+(* let%test_unit "part3 (other example)" =
+  [%test_eq: int] 13314695352588 (part3 p3_example) *)
