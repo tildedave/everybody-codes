@@ -67,6 +67,46 @@ let all_distances ~num_portals m =
             | Some d' -> if d1 + d2 < d' then d1 + d2 else d')
       | _ -> m)
 
+(* hypothesis, we have modified (x, y), we want to see if any
+       (a, y) -- (a, x) + (x, y) needs updating
+      looks like I may also have to solve
+      (x, a) -- (x, y) + (y, a)
+       fold over all rng, check if <, if <, recurse.
+       unclear if this will work but I will try :-)
+    *)
+let repair_distances distances repair_set ~num_portals =
+  let rng = Sequence.range 1 num_portals ~stop:`inclusive in
+  let rec dfs distances (x, y) =
+    Sequence.fold ~init:distances
+      ~f:(fun distances a ->
+        if equal a x || equal a y then distances
+        else
+          let distances =
+            let d1 = Map.find_exn distances (a, x) in
+            let d2 = Map.find_exn distances (x, y) in
+            let d = Map.find_exn distances (a, y) in
+            if d > d1 + d2 then
+              dfs
+                (distances
+                |> Map.set ~key:(a, y) ~data:(d1 + d2)
+                |> Map.set ~key:(y, a) ~data:(d1 + d2))
+                (a, y)
+            else distances
+          in
+          let d1 = Map.find_exn distances (x, y) in
+          let d2 = Map.find_exn distances (y, a) in
+          let d = Map.find_exn distances (x, a) in
+          if d > d1 + d2 then
+            dfs
+              (distances
+              |> Map.set ~key:(x, a) ~data:(d1 + d2)
+              |> Map.set ~key:(a, x) ~data:(d1 + d2))
+              (x, a)
+          else distances)
+      rng
+  in
+  Set.fold ~init:distances ~f:dfs repair_set
+
 let p1_distances ~config =
   let num_portals, pair_list = config in
   ( Map.empty (module IntPair_Comparator) |> fun m ->
@@ -185,13 +225,15 @@ let part2 l =
       | Some 1 -> None
       | Some _ -> Some (x, y)
   in
+  let portal_all_distances = all_distances ~num_portals portal_distances in
   optimize_indices
   |> Sequence.map ~f:(fun (x, y) ->
       (* make connection, run floyd-warshall, see what happened *)
-      all_distances
-        (portal_distances
+      repair_distances
+        (portal_all_distances
         |> Map.set ~key:(x, y) ~data:1
         |> Map.set ~key:(y, x) ~data:1)
+        (Set.add (Set.singleton (module IntPair_Comparator) (x, y)) (y, x))
         ~num_portals
       |> (fun m -> Sequence.map ~f:(total_distance ~m ~num_portals) rng)
       |> Sequence.sum (module Int) ~f:Fn.id)
@@ -200,4 +242,10 @@ let part2 l =
   |> fun v -> no_portal_weight - v
 
 let%test_unit "part2" = [%test_result: int] ~expect:6 (part2 example)
+
+(* well part2 didn't finish instantly.  part3 is 2x as big, but the number of
+   indices to check really just remain linear in the size of the ring. *)
+(* my part2 solution is not completing on part3, so we may have to optimize more *)
+(* I believe we can be smarter with floyd warshall. *)
+
 let part3 _ = 1
