@@ -160,6 +160,15 @@ Stdio.print_endline
          | _ -> failwith "impossible"
        in
        Int.to_string @@ f lines
+   | "2026", "quest12", p ->
+       let f =
+         match p with
+         | "1" -> Y2026.Quest12.part1
+         | "2" -> Y2026.Quest12.part2
+         | "3" -> Y2026.Quest12.part3
+         | _ -> failwith "impossible"
+       in
+       Int.to_string @@ f lines
    | "story1", "quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1", "quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1", "quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
