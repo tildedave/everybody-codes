@@ -79,7 +79,7 @@ let%test_unit "crt_inductive" =
   [%test_eq: int] 39 (crt_inductive [ (0, 3); (3, 4); (4, 5) ])
 
 module IntPair = struct
-  type t = int * int [@@deriving compare, sexp_of]
+  type t = int * int [@@deriving compare, sexp_of, equal]
 
   let hash = Hashtbl.hash
 end

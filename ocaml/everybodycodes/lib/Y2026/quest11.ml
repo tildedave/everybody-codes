@@ -1,0 +1,203 @@
+open Base
+open Util
+
+let parse_input lines =
+  ( Stdlib.Scanf.sscanf (List.hd_exn lines) "portals: %d" Fn.id,
+    List.fold
+      ~init:(Map.empty (module Int))
+      ~f:(fun acc s ->
+        Stdlib.Scanf.sscanf s "%d %d" (fun d1 d2 ->
+            Map.add_multi (Map.add_multi acc ~key:d2 ~data:d1) ~key:d1 ~data:d2))
+      (List.drop lines 2) )
+
+let example = [ "portals: 10"; ""; "5 10"; "2 7" ]
+
+let%test_unit "parse_input" =
+  [%test_result: int * (int * int list) list]
+    ~expect:(10, [ (2, [ 7 ]); (5, [ 10 ]); (7, [ 2 ]); (10, [ 5 ]) ])
+    ((fun (n, m) -> (n, Map.to_alist m)) (parse_input example))
+
+(* presumably eventually we won't be able to enumerate the numbers *)
+(* this is a straightforward dynamic programming problem.  we will use an array
+   instead of a monadic map because my head hurts *)
+
+let walk num_portals dx x = mod_positive (x - 1 + dx) num_portals + 1
+let all_portals ~num_portals = Sequence.range ~stop:`inclusive 1 num_portals
+
+let%test_unit "walk (forward)" =
+  [%test_result: int list]
+    ~expect:[ 2; 3; 4; 5; 6; 7; 8; 9; 10; 1 ]
+    (Sequence.to_list
+       (Sequence.map ~f:(walk 10 1) (all_portals ~num_portals:10)))
+
+let%test_unit "walk (backwards)" =
+  [%test_result: int list]
+    ~expect:[ 10; 1; 2; 3; 4; 5; 6; 7; 8; 9 ]
+    (Sequence.to_list
+       (Sequence.map ~f:(walk 10 (-1)) (all_portals ~num_portals:10)))
+
+(* let neighbors n ~config =
+  let num_portals, jumps = config in
+  let nextdoor_neighbors = [ walk num_portals 1 n; walk num_portals (-1) n ] in
+  match Map.find jumps n with
+  | None -> nextdoor_neighbors
+  | Some x -> x :: nextdoor_neighbors *)
+
+(* of course this is an unbounded search.  we have to be smarter.
+   let us floyd-warshall *)
+(*
+if dist[i][j] > dist[i][k] + dist[k][j]
+                dist[i][j] = dist[i][k] + dist[k][j]
+*)
+
+let all_distances ~num_portals m =
+  let rng = Sequence.range 1 num_portals ~stop:`inclusive in
+  let indices =
+    let open Sequence.Let_syntax in
+    let%bind k = rng in
+    let%bind i = rng in
+    let%map j = rng in
+    (k, i, j)
+  in
+  Sequence.fold ~init:m indices ~f:(fun m (k, i, j) ->
+      match (Map.find m (i, k), Map.find m (k, j)) with
+      | Some d1, Some d2 ->
+          Map.update m (i, j) ~f:(function
+            | None -> d1 + d2
+            | Some d' -> if d1 + d2 < d' then d1 + d2 else d')
+      | _ -> m)
+
+let p1_distances ~config =
+  let num_portals, pair_list = config in
+  ( Map.empty (module IntPair_Comparator) |> fun m ->
+    List.fold ~init:m
+      ~f:(fun m i ->
+        m
+        |> Map.set ~key:(i, i) ~data:0
+        |> Map.set ~key:(i, walk num_portals 1 i) ~data:1
+        |> Map.set ~key:(walk num_portals 1 i, i) ~data:1)
+      (List.range 1 num_portals ~stop:`inclusive) )
+  |> fun m ->
+  List.fold ~init:m
+    ~f:(fun m (source, dest_list) ->
+      List.fold ~init:m
+        ~f:(fun m dest -> Map.set m ~key:(source, dest) ~data:1)
+        dest_list)
+    (Map.to_alist pair_list)
+
+let distance_from x m ~num_portals =
+  Sequence.map (all_portals ~num_portals) ~f:(fun dest ->
+      Map.find_exn m (x, dest))
+
+let total_distance x ~m ~num_portals =
+  Sequence.sum (module Int) (distance_from x m ~num_portals) ~f:Fn.id
+
+let no_portals config = (fst config, Map.empty (module Int))
+
+let%test_unit "distance_from (no portals)" =
+  [%test_result: int list]
+    ~expect:[ 0; 1; 2; 3; 4; 5; 4; 3; 2; 1 ]
+    (let config = no_portals (parse_input example) in
+     Sequence.to_list
+       (distance_from 1
+          (all_distances ~num_portals:(fst config) (p1_distances ~config))
+          ~num_portals:(fst config)))
+
+let%test_unit "distance_from (portals)" =
+  [%test_result: int list]
+    ~expect:[ 0; 1; 2; 3; 2; 3; 2; 3; 2; 1 ]
+    (let config = parse_input example in
+     Sequence.to_list
+       (distance_from 1
+          (all_distances ~num_portals:(fst config) (p1_distances ~config))
+          ~num_portals:(fst config)))
+
+let part1 l =
+  let config = parse_input l in
+  let num_portals, _ = config in
+  let d_portals = all_distances ~num_portals (p1_distances ~config) in
+  let d_no_portals =
+    all_distances ~num_portals (p1_distances ~config:(no_portals config))
+  in
+  Sequence.fold ~init:0
+    ~f:(fun acc n ->
+      acc
+      + (total_distance n ~num_portals ~m:d_no_portals
+        - total_distance n ~num_portals ~m:d_portals))
+    (all_portals ~num_portals)
+
+let%test_unit "part1" = [%test_result: int] ~expect:60 (part1 example)
+
+let p2_distances ~config =
+  let num_portals, pair_list = config in
+  ( Map.empty (module IntPair_Comparator) |> fun m ->
+    List.fold ~init:m
+      ~f:(fun m i ->
+        m |> Map.set ~key:(i, i) ~data:0 |> fun m ->
+        List.fold ~init:m
+          ~f:(fun m dx ->
+            m
+            |> Map.set ~key:(i, walk num_portals dx i) ~data:1
+            |> Map.set ~key:(walk num_portals dx i, i) ~data:1)
+          (List.range 1 4))
+      (List.range 1 num_portals ~stop:`inclusive) )
+  |> fun m ->
+  List.fold ~init:m
+    ~f:(fun m (source, dest_list) ->
+      List.fold ~init:m
+        ~f:(fun m dest -> Map.set m ~key:(source, dest) ~data:1)
+        dest_list)
+    (Map.to_alist pair_list)
+
+let%test_unit "distance_from (p2_distances)" =
+  [%test_result: int list]
+    ~expect:[ 0; 1; 1; 1; 2; 2; 2; 1; 1; 1 ]
+    (let config = parse_input example in
+     Sequence.to_list
+       (distance_from 1
+          (all_distances ~num_portals:(fst config) (p2_distances ~config))
+          ~num_portals:(fst config)))
+
+(* OK part2 is basically part1 with some optimizing *)
+let part2 l =
+  let config = parse_input l in
+  let num_portals, _ = config in
+  let no_portal_distances = p2_distances ~config:(no_portals config) in
+  let rng = Sequence.range 1 num_portals ~stop:`inclusive in
+  let initial_distances = all_distances no_portal_distances ~num_portals in
+  let no_portal_weight =
+    Sequence.sum (module Int) ~f:Fn.id
+    @@ Sequence.map
+         ~f:(total_distance ~m:initial_distances ~num_portals)
+         (all_portals ~num_portals)
+  in
+  let portal_distances = p2_distances ~config in
+  let optimize_indices =
+    Sequence.filter_opt
+    @@
+    let open Sequence.Let_syntax in
+    let%bind x = rng in
+    let%map y = rng in
+    if equal x y || x > y then None
+    else
+      match Map.find portal_distances (x, y) with
+      | None -> Some (x, y)
+      | Some 1 -> None
+      | Some _ -> Some (x, y)
+  in
+  optimize_indices
+  |> Sequence.map ~f:(fun (x, y) ->
+      (* make connection, run floyd-warshall, see what happened *)
+      all_distances
+        (portal_distances
+        |> Map.set ~key:(x, y) ~data:1
+        |> Map.set ~key:(y, x) ~data:1)
+        ~num_portals
+      |> (fun m -> Sequence.map ~f:(total_distance ~m ~num_portals) rng)
+      |> Sequence.sum (module Int) ~f:Fn.id)
+  |> Sequence.min_elt ~compare:Int.compare
+  |> Option.value_exn
+  |> fun v -> no_portal_weight - v
+
+let%test_unit "part2" = [%test_result: int] ~expect:6 (part2 example)
+let part3 _ = 1
