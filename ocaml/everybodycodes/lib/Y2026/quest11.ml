@@ -21,20 +21,22 @@ let%test_unit "parse_input" =
 (* this is a straightforward dynamic programming problem.  we will use an array
    instead of a monadic map because my head hurts *)
 
-let walk num_portals dx x = mod_positive (x - 1 + dx) num_portals + 1
+let walk ~num_portals dx x = mod_positive (x - 1 + dx) num_portals + 1
 let all_portals ~num_portals = Sequence.range ~stop:`inclusive 1 num_portals
 
 let%test_unit "walk (forward)" =
   [%test_result: int list]
     ~expect:[ 2; 3; 4; 5; 6; 7; 8; 9; 10; 1 ]
     (Sequence.to_list
-       (Sequence.map ~f:(walk 10 1) (all_portals ~num_portals:10)))
+       (Sequence.map ~f:(walk ~num_portals:10 1) (all_portals ~num_portals:10)))
 
 let%test_unit "walk (backwards)" =
   [%test_result: int list]
     ~expect:[ 10; 1; 2; 3; 4; 5; 6; 7; 8; 9 ]
     (Sequence.to_list
-       (Sequence.map ~f:(walk 10 (-1)) (all_portals ~num_portals:10)))
+       (Sequence.map
+          ~f:(walk ~num_portals:10 (-1))
+          (all_portals ~num_portals:10)))
 
 (* let neighbors n ~config =
   let num_portals, jumps = config in
@@ -73,7 +75,7 @@ let all_distances ~num_portals m =
       (x, a) -- (x, y) + (y, a)
        fold over all rng, check if <, if <, recurse.
        unclear if this will work but I will try :-)
-    *)
+ *)
 let repair_distances distances repair_set ~num_portals =
   let rng = Sequence.range 1 num_portals ~stop:`inclusive in
   let rec dfs distances (x, y) =
@@ -114,8 +116,8 @@ let p1_distances ~config =
       ~f:(fun m i ->
         m
         |> Map.set ~key:(i, i) ~data:0
-        |> Map.set ~key:(i, walk num_portals 1 i) ~data:1
-        |> Map.set ~key:(walk num_portals 1 i, i) ~data:1)
+        |> Map.set ~key:(i, walk ~num_portals 1 i) ~data:1
+        |> Map.set ~key:(walk ~num_portals 1 i, i) ~data:1)
       (List.range 1 num_portals ~stop:`inclusive) )
   |> fun m ->
   List.fold ~init:m
@@ -177,8 +179,8 @@ let p2_distances ~config =
         List.fold ~init:m
           ~f:(fun m dx ->
             m
-            |> Map.set ~key:(i, walk num_portals dx i) ~data:1
-            |> Map.set ~key:(walk num_portals dx i, i) ~data:1)
+            |> Map.set ~key:(i, walk ~num_portals dx i) ~data:1
+            |> Map.set ~key:(walk ~num_portals dx i, i) ~data:1)
           (List.range 1 4))
       (List.range 1 num_portals ~stop:`inclusive) )
   |> fun m ->
@@ -205,12 +207,8 @@ let part2 l =
   let no_portal_distances = p2_distances ~config:(no_portals config) in
   let rng = Sequence.range 1 num_portals ~stop:`inclusive in
   let initial_distances = all_distances no_portal_distances ~num_portals in
-  let no_portal_weight =
-    Sequence.sum (module Int) ~f:Fn.id
-    @@ Sequence.map
-         ~f:(total_distance ~m:initial_distances ~num_portals)
-         (all_portals ~num_portals)
-  in
+  (* observation: total weight is just the sum of the entire matrix *)
+  let no_portal_weight = Map.sum (module Int) ~f:Fn.id initial_distances in
   let portal_distances = p2_distances ~config in
   let optimize_indices =
     Sequence.filter_opt
@@ -228,12 +226,13 @@ let part2 l =
   let portal_all_distances = all_distances ~num_portals portal_distances in
   optimize_indices
   |> Sequence.map ~f:(fun (x, y) ->
-      (* make connection, run floyd-warshall, see what happened *)
       repair_distances
         (portal_all_distances
         |> Map.set ~key:(x, y) ~data:1
         |> Map.set ~key:(y, x) ~data:1)
-        (Set.add (Set.singleton (module IntPair_Comparator) (x, y)) (y, x))
+        (Set.empty (module IntPair_Comparator)
+        |> (Fn.flip Set.add) (x, y)
+        |> (Fn.flip Set.add) (y, x))
         ~num_portals
       |> (fun m -> Sequence.map ~f:(total_distance ~m ~num_portals) rng)
       |> Sequence.sum (module Int) ~f:Fn.id)
@@ -247,5 +246,97 @@ let%test_unit "part2" = [%test_result: int] ~expect:6 (part2 example)
    indices to check really just remain linear in the size of the ring. *)
 (* my part2 solution is not completing on part3, so we may have to optimize more *)
 (* I believe we can be smarter with floyd warshall. *)
+(* OK we are smarter with floyd warshall.  excellent.  88 / 8 = only 11
+   candidates, which is I think less work than my existing code! *)
+(* j/k the candidate logic is more complicated *)
 
-let part3 _ = 1
+let spaced_connections start ~num_portals =
+  assert (equal (num_portals % 8) 0);
+  let dn = num_portals / 8 in
+  (* all connections must be dn from each other *)
+  let spots = List.init 8 ~f:(fun n -> start + (n * dn)) in
+  (* must emit all combinations of 4 pairs of these elements *)
+  let rec helper = function
+    | [] -> Sequence.singleton Sequence.empty
+    | x :: xs ->
+        Sequence.concat_map (Sequence.of_list xs) ~f:(fun y ->
+            let remaining = List.filter xs ~f:(fun y' -> not (equal y y')) in
+            Sequence.map (helper remaining) ~f:(fun m ->
+                Sequence.shift_right m (x, y)))
+  in
+  helper spots
+
+(* let%test_unit "spaced_connections" =
+  [%test_result: (int * int) list list] ~expect:[]
+    (spaced_connections ~num_portals:32 2)
+
+let%test_unit "spaced_connections (size 64)" =
+  [%test_result: (int * int) list list]
+    ~expect:
+      [
+        [
+          (1, 17);
+          (9, 33);
+          (10, 26);
+          (14, 30);
+          (18, 2);
+          (22, 6);
+          (26, 10);
+          (30, 14);
+        ];
+      ]
+    (spaced_connections ~num_portals:64 1) *)
+
+let part3 l =
+  let config = parse_input l in
+  let num_portals, _ = config in
+  let no_portal_distances = p2_distances ~config:(no_portals config) in
+  let rng = Sequence.range 1 num_portals ~stop:`inclusive in
+  let initial_distances = all_distances no_portal_distances ~num_portals in
+  (* observation: total weight is just the sum of the entire matrix *)
+  let no_portal_weight = Map.sum (module Int) ~f:Fn.id initial_distances in
+  let portal_distances = p2_distances ~config in
+  let candidates =
+    (Sequence.concat_map ~f:(spaced_connections ~num_portals))
+      (Sequence.take rng (num_portals / 8))
+  in
+  let portal_all_distances = all_distances ~num_portals portal_distances in
+  candidates
+  |> Sequence.map ~f:(fun connections ->
+      let connection_pairs =
+        Sequence.fold
+          ~init:(Set.empty (module IntPair_Comparator))
+          ~f:(fun acc (x, y) ->
+            acc |> (Fn.flip Set.add) (x, y) |> (Fn.flip Set.add) (y, x))
+          connections
+      in
+      repair_distances
+        (Set.fold ~init:portal_all_distances
+           ~f:(fun m (x, y) ->
+             m |> Map.set ~key:(x, y) ~data:1 |> Map.set ~key:(y, x) ~data:1)
+           connection_pairs)
+        connection_pairs ~num_portals
+      |> (fun m -> Sequence.map ~f:(total_distance ~m ~num_portals) rng)
+      |> Sequence.sum (module Int) ~f:Fn.id)
+    (* |> fun v ->
+      Stdio.printf "connections %s --> %d\n"
+        (String.concat ~sep:","
+        @@ List.map
+             ~f:(fun (d1, d2) -> Printf.sprintf "(%d, %d)" d1 d2)
+             (Sequence.to_list connections))
+        v;
+      Out_channel.flush Stdio.stdout;
+      v) *)
+  |> Sequence.min_elt ~compare:Int.compare
+  |> Option.value_exn
+  |> fun v -> no_portal_weight - v
+
+(* let p3_example1 = [ "portals: 32"; ""; "1 10"; "20 30"; "15 29"; "13 10" ]
+
+let%test_unit "part3 (first example)" =
+  [%test_result: int] ~expect:854 (part3 p3_example1) *)
+
+let p3_example2 = [ "portals: 64"; ""; "1 40"; "3 35"; "5 42"; "7 50" ]
+
+let%test_unit "part3 (second example)" =
+  [%test_result: int] ~expect:9634 (part3 p3_example2)
