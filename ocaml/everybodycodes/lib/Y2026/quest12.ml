@@ -85,7 +85,7 @@ let in_bbox ((xmin, ymin), (xmax, ymax)) (x, y) =
 
 let indices ((xmin, ymin), (xmax, ymax)) =
   let open Sequence.Let_syntax in
-  Stdio.printf "%d %d %d %d\n" xmin ymin xmax ymax;
+  (* Stdio.printf "%d %d %d %d\n" xmin ymin xmax ymax; *)
   let%bind y = Sequence.range ~stop:`inclusive ymin ymax in
   let%map x = Sequence.range ~stop:`inclusive xmin xmax in
   (x, y)
@@ -94,7 +94,7 @@ let indices ((xmin, ymin), (xmax, ymax)) =
 (* OK, we can determine the bounding box and carve out the size of the empty
    square inside it, using a similar flood fill method *)
 (* OK then *)
-let empty_bounding_box g bbox =
+let empty_bounding_box g bbox coord_set =
   indices bbox
   |> Sequence.fold
        ~init:(Map.empty (module IntPair_Comparator))
@@ -102,7 +102,8 @@ let empty_bounding_box g bbox =
          if Map.mem m coord || not (equal_char (grid_at g coord) '.') then m
          else
            grid_fill g (component_id ()) ~m coord ~f:(fun (x, y) ch ->
-               in_bbox bbox (x, y) && equal_char '.' ch))
+               in_bbox bbox (x, y)
+               && (equal_char '.' ch || not (Set.mem coord_set (x, y)))))
   |> Map.keys |> bounding_box
 
 let p2_example1 =
@@ -119,7 +120,7 @@ let p2_example1 =
    to do this generically?) *)
 (* just iterate everything in the bounding box, the x, y outside the ebb etc *)
 
-let split_shapes bb ebb =
+(* let split_shapes bb ebb =
   let (xmin, ymin), (xmax, ymax) = ebb in
   indices bb
   |> Sequence.fold
@@ -137,32 +138,153 @@ let split_shapes bb ebb =
     (show_tuple @@ snd @@ Option.value_exn @@ bounding_box (Set.to_list one));
 
   ( num_reflections @@ Option.value_exn @@ bounding_box (Set.to_list one),
-    num_reflections @@ Option.value_exn @@ bounding_box (Set.to_list two) )
+    num_reflections @@ Option.value_exn @@ bounding_box (Set.to_list two) ) *)
 
 let part2 l =
   let g = to_grid l in
   let m = fill_components g in
   components m
-  |> Set.iter ~f:(fun component_num ->
+  |> Set.fold ~init:0 ~f:(fun n component_num ->
       let bb =
         Option.value_exn @@ bounding_box @@ component_coords m component_num
       in
-      let ebb = empty_bounding_box g bb in
-      Stdio.printf "component %d - bounding box is (%s, %s)" component_num
+      let ebb =
+        empty_bounding_box g bb
+          (Map.fold
+             ~init:(Set.empty (module IntPair_Comparator))
+             ~f:(fun ~key ~data:_ acc -> Set.add acc key)
+             (Map.filter m ~f:(equal component_num)))
+      in
+      Stdio.printf "component %d - bounding box is (%s, %s)\n" component_num
         (show_tuple (fst bb))
         (show_tuple (snd bb));
       if Option.is_some ebb then begin
-        Stdio.printf " empty bb is (%s, %s)\n"
+        (* Stdio.printf " empty bb is (%s, %s)\n"
           (show_tuple (fst @@ Option.value_exn ebb))
-          (show_tuple (snd @@ Option.value_exn ebb));
-        let one, two = split_shapes bb (Option.value_exn ebb) in
-        Stdio.printf "lasers: %d\n" (one + two)
+          (show_tuple (snd @@ Option.value_exn ebb)); *)
+        let (xmin, ymin), (xmax, ymax) = bb in
+        let (exmin, eymin), (exmax, eymax) = Option.value_exn ebb in
+        Stdio.printf "exmin %d exmax %d dx %d dy %d\n" exmin exmax
+          (exmax - exmin + 1)
+          (eymax - eymin + 1);
+        let no_ebb_value = num_reflections bb in
+        if xmin < exmin && ymin < eymin && exmax < xmax && eymax < ymax then begin
+          let ex = exmax - exmin + 1 in
+          let ey = eymax - eymin + 1 in
+          let x1, x2 = (exmin - xmin, xmax - exmax) in
+          let y1, y2 = (eymin - ymin, ymax - eymax) in
+          Stdio.printf "fully enclosed! ex %d ey %d x1 %d x2 %d y1 %d y2 %d\n"
+            ex ey x1 x2 y1 y2;
+          let smallest_size =
+            Option.value_exn
+            @@ List.min_elt ~compare:Int.compare
+                 [
+                   x1 + x2 + (2 * ex);
+                   y1 + y2 + (2 * ey);
+                   x1 + y1 + x2 + y2;
+                   y1 + y2 + x1 + ey;
+                   y1 + y2 + x2 + ey;
+                   x1 + x2 + y1 + ex;
+                   x1 + x2 + y2 + ex;
+                   (* (2 * ey) + (2 * ex) + y1 + y2; << always > #2 *)
+                 ]
+          in
+          Stdio.printf "smallest size is ---> %d\n" smallest_size;
+          n + smallest_size
+          (* OK it's not incredibly simple, because the fully enclosed size
+             means the edges around it need to be double reflected *)
+          (* n + no_ebb_value *)
+        end
+        else
+          let dx, dy =
+            (xmax - xmin - (exmax - exmin), ymax - ymin - (eymax - eymin))
+          in
+          (* Stdio.printf "lasers: %d\n" (min (dx + dy) no_ebb_value); *)
+          n + min (dx + dy) no_ebb_value
       end
-      else Stdio.printf "\nlasers: %d\n" (num_reflections bb);
-      Stdio.printf "\n")
-  |> fun _ -> 1
+      else
+        (* Stdio.printf "\nlasers: %d\n" (num_reflections bb); *)
+        n + num_reflections bb)
 
 let%test_unit "part2 (given)" =
-  [%test_result: int] ~expect:7 (part2 p2_example1)
+  [%test_result: int] ~expect:6 (part2 p2_example1)
 
-let part3 _ = 1
+let p2_example2 =
+  [
+    "...............................";
+    ".####....#####..#######........";
+    ".####....#####..#######........";
+    ".####....#####..#######........";
+    ".........#####.......##........";
+    ".........########....##........";
+    ".........########....##........";
+    "...............................";
+    ".######....#.....#.....###.....";
+    "...........#...........###.....";
+    "...........#......########.....";
+    "...........#......########.....";
+    "...........#......########.....";
+    "..................########.....";
+    "...............................";
+  ]
+
+let%test_unit "part2 (larger one)" =
+  [%test_result: int] ~expect:23 (part2 p2_example2)
+
+(* part3 is thankfully just part2 again but we have to handle the ebb being
+   fully enclosed, which is simple *)
+
+let part3 l =
+  Stdio.printf "PART 3\n";
+  part2 l
+
+(* let p3_example1 =
+  [
+    "........#.";
+    ".##.......";
+    ".##..####.";
+    ".#...#..#.";
+    ".....####.";
+    ".###......";
+  ]
+
+let%test_unit "part3" = [%test_result: int] ~expect:8 (part3 p3_example1) *)
+
+let p3_example2 =
+  [
+    "..............................";
+    ".##########....##.....#######.";
+    ".##########.##.##..#..#######.";
+    ".####..####.##.##.....#.#####.";
+    ".##########.##.#####..#.#####.";
+    ".##########.##........#######.";
+    "..............................";
+    ".##########..################.";
+    ".##########..#..............#.";
+    ".#######..#..#..............#.";
+    ".#######..#..################.";
+    ".##########..################.";
+    "..............................";
+  ]
+
+let%test_unit "part3 (example 2)" =
+  [%test_result: int] ~expect:29 (part3 p3_example2)
+
+let p3_example3 =
+  [
+    "..............................";
+    ".############################.";
+    ".##.......................###.";
+    ".##..################.###.###.";
+    ".##..######.........#.###.###.";
+    ".##..################.###.###.";
+    ".##...................###.###.";
+    ".##..####################.###.";
+    ".##..####################.###.";
+    ".##.......................###.";
+    ".############################.";
+    "..............................";
+  ]
+
+let%test_unit "part3 (example 3)" =
+  [%test_result: int] ~expect:16 (part3 p3_example3)
