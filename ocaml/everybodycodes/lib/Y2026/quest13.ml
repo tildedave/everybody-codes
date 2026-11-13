@@ -33,7 +33,13 @@ type clock = {
   time_left : int;
   winding_number : int;
 }
-[@@deriving sexp, compare, show]
+[@@deriving sexp, compare]
+
+let show_clock clock =
+  Printf.sprintf "{hands=%d; current=%d; direction=%d}" clock.hands
+    clock.current clock.direction
+
+let _ = show_clock
 
 let rec parse_clocks hands direction current move =
   match (hands, direction, current, move) with
@@ -59,7 +65,7 @@ let parse_lines l =
         (parse_colons "move %s" l4)
   | _ -> failwith "invalid"
 
-let example =
+let p1_example1 =
   [ "hands 6:8:12"; "direction CW:CCW:CW"; "current 2:4:8"; "move 9:7:4" ]
 
 let%test_unit "parse_lines" =
@@ -88,7 +94,7 @@ let%test_unit "parse_lines" =
           winding_number = 0;
         };
       ]
-    (parse_lines example)
+    (parse_lines p1_example1)
 
 let is_done clock = equal_int clock.time_left 0
 
@@ -162,9 +168,9 @@ let%test_unit "angle_between" =
   (min p n, max p n)
 *)
 
-let overlaps (lo, hi) (lo2, hi2) =
+(* let overlaps (lo, hi) (lo2, hi2) =
   let open Bignum in
-  not (hi < lo2 || lo > hi2)
+  not (hi < lo2 || lo > hi2) *)
 
 (* let norm_to_zero_one b =
   let open Bignum in
@@ -181,7 +187,7 @@ let overlaps (lo, hi) (lo2, hi2) =
   let open Bignum in
   lo <= x && x <= hi *)
 
-let show_interval (lo, hi) =
+(* let show_interval (lo, hi) =
   Printf.sprintf "(%s, %s)"
     (Bignum.to_string_accurate lo)
     (Bignum.to_string_accurate hi)
@@ -206,7 +212,7 @@ let timepair_to_intervals (start_c, end_c) =
       [
         (clock_to_bignum end_c, Bignum.one);
         (Bignum.zero, clock_to_bignum start_c);
-      ]
+      ] *)
 
 (* their example: beige --> 1 = hands 6, green --> 2 = hands 8, red --> 3 = hands 12 *)
 
@@ -228,38 +234,71 @@ let timepair_to_intervals (start_c, end_c) =
 (* case 2: start_c --> end_c, winding number change, heading CW *)
 (* case 3: start_c --> end_c, winding number change, heading CCW *)
 
+(* OK, another way to think about this is that the clocks are modeled by e^2pi/h t *)
+(* solve for all possible t's *)
+
+let paths_overlap clock1 clock2 =
+  let k1, n1, k2, n2 =
+    (clock1.current, clock1.hands, clock2.current, clock2.hands)
+  in
+  let c1, c2 = (clock1.direction, clock2.direction) in
+  (* special case 0 in the case that the clocks are moving in the opposite direction *)
+  (* OK 0 special case is messing up my 0 --> 1 1 <-- 0 detection *)
+  (* let k1, k2 =
+    match (c1, c2) with
+    | -1, -1 -> (k1, k2)
+    | 1, 1 -> (k1, k2)
+    | -1, 1 -> ((if equal_int k1 1 then k1 + n1 else k1), k2)
+    | 1, -1 -> (k1, if equal_int k2 1 then k2 + n2 else k2)
+    | _ -> invalid_arg "invalid direction"
+  in *)
+  (* I need to just sit down and work through this - this is not working *)
+  let k1, k2 =
+    ( (if equal_int clock1.current 1 && equal_int clock1.direction (-1) then
+         k1 + n1
+       else k1),
+      if equal_int clock2.current 1 && equal_int clock2.direction (-1) then
+        k2 + k2
+      else k2 )
+  in
+  let n, d = ((n2 * k1) - (n1 * k2), (c2 * n1) - (c1 * n2)) in
+  let open Bignum in
+  let f = of_int n / of_int d in
+  Stdio.printf "f: %s\n" (Bignum.to_string_accurate f);
+  zero < f && f <= one
+
+let test_clock =
+  { hands = 12; current = 0; time_left = 0; winding_number = 0; direction = 1 }
+
+let%test_unit "intersections near origin" =
+  [%test_result: bool list] ~expect:[ true; false; true ]
+    (List.map
+       ~f:(fun (c1, c2) -> paths_overlap c1 c2)
+       [
+         ( { test_clock with current = 1; direction = -1 },
+           { test_clock with current = 0; direction = 1 } );
+         ( { test_clock with current = 0; direction = -1 },
+           { test_clock with current = 0; direction = 1 } );
+         ( { test_clock with current = 11; direction = 1 },
+           { test_clock with current = 0; direction = -1 } );
+       ])
+
 let signals clocks =
   Sequence.unfold ~init:clocks ~f:(fun clocks ->
       if List.for_all ~f:is_done clocks then None
       else
-        let prev_next = List.map ~f:(fun clock -> (clock, tick clock)) clocks in
-        Stdio.printf "TICK\n";
         let num_signals =
           List.fold ~init:0
-            ~f:(fun acc (pair1, pair2) ->
-              if
-                List.exists
-                  ~f:(fun i ->
-                    List.exists
-                      ~f:(fun j -> overlaps i j)
-                      (timepair_to_intervals pair2))
-                  (timepair_to_intervals pair1)
-              then (
-                (* Stdio.printf "clocks overlap %s -> %s  %s -> %s\n"
-                  (show_clock (fst pair1))
-                  (show_clock (snd pair1))
-                  (show_clock (fst pair2))
-                  (show_clock (snd pair2)); *)
-                Stdio.printf "clocks overlap %d %d\n" (fst pair1).hands
-                  (fst pair2).hands;
-                Stdio.printf "intervals pair1: %s pair2: %s\n"
-                  (String.concat ~sep:","
-                     (List.map ~f:show_interval (timepair_to_intervals pair1)))
-                  (String.concat ~sep:","
-                     (List.map ~f:show_interval (timepair_to_intervals pair2)));
-                acc + 1)
-              else acc
-                (* 1 was previously at current/hands, then goes to current / hands
+            ~f:(fun acc (clock1, clock2) ->
+              if paths_overlap clock1 clock2 then
+                (* Stdio.printf "\tpaths overlap %s -> %s\n" (show_clock clock1)
+                  (show_clock clock2); *)
+                acc + 1
+              else
+                (* Stdio.printf "\tno overlap %s -> %s\n" (show_clock clock1)
+                  (show_clock clock2); *)
+                acc)
+            (* 1 was previously at current/hands, then goes to current / hands
               (* can treat this as an interval I guess.  no more mods means we're
            continuous *)
               (* let i1 = to_interval prev1 next1 in
@@ -268,18 +307,32 @@ let signals clocks =
               if overlaps i1 i2 then (
                 Stdio.printf "i1 = %s\n" (show_interval i1);
                 Stdio.printf "i2 = %s\n" (show_interval i2);
-                acc + 1) *))
-            (all_pairs prev_next)
+                acc + 1) *)
+            (all_pairs clocks)
         in
-        Some (num_signals, List.map ~f:snd prev_next))
+        Some (num_signals, List.map ~f:tick clocks))
 
 (* if clocks pass each other or stop in the same place (but were all still
        moving), emit signal *)
 
-let%test_unit "part1" =
-  [%test_result: int list] ~expect:[]
-    (Sequence.to_list (signals (parse_lines example)))
+let part1 l = Sequence.sum (module Int) (signals (parse_lines l)) ~f:Fn.id
 
-let part1 _ = 1
+let%test_unit "part1 (first)" =
+  [%test_result: int] ~expect:5 (part1 p1_example1)
+
+let%test_unit "part1 (second)" =
+  [%test_result: int] ~expect:7
+    (part1
+       [
+         "hands 6:8:12"; "direction CW:CCW:CW"; "current 1:2:2"; "move 10:12:15";
+       ])
+
+let%test_unit "part1 (third)" =
+  [%test_result: int] ~expect:9
+    (part1
+       [
+         "hands 6:8:12"; "direction CW:CCW:CW"; "current 1:2:2"; "move 10:12:20";
+       ])
+
 let part2 _ = 1
 let part3 _ = 1
