@@ -155,26 +155,26 @@ let part2 l =
              ~f:(fun ~key ~data:_ acc -> Set.add acc key)
              (Map.filter m ~f:(equal component_num)))
       in
-      Stdio.printf "component %d - bounding box is (%s, %s)\n" component_num
+      (* Stdio.printf "component %d - bounding box is (%s, %s)\n" component_num
         (show_tuple (fst bb))
-        (show_tuple (snd bb));
+        (show_tuple (snd bb)); *)
       if Option.is_some ebb then begin
         (* Stdio.printf " empty bb is (%s, %s)\n"
           (show_tuple (fst @@ Option.value_exn ebb))
           (show_tuple (snd @@ Option.value_exn ebb)); *)
         let (xmin, ymin), (xmax, ymax) = bb in
         let (exmin, eymin), (exmax, eymax) = Option.value_exn ebb in
-        Stdio.printf "exmin %d exmax %d dx %d dy %d\n" exmin exmax
+        (* Stdio.printf "exmin %d exmax %d dx %d dy %d\n" exmin exmax
           (exmax - exmin + 1)
-          (eymax - eymin + 1);
+          (eymax - eymin + 1); *)
         let no_ebb_value = num_reflections bb in
         if xmin < exmin && ymin < eymin && exmax < xmax && eymax < ymax then begin
           let ex = exmax - exmin + 1 in
           let ey = eymax - eymin + 1 in
           let x1, x2 = (exmin - xmin, xmax - exmax) in
           let y1, y2 = (eymin - ymin, ymax - eymax) in
-          Stdio.printf "fully enclosed! ex %d ey %d x1 %d x2 %d y1 %d y2 %d\n"
-            ex ey x1 x2 y1 y2;
+          (* Stdio.printf "fully enclosed! ex %d ey %d x1 %d x2 %d y1 %d y2 %d\n"
+            ex ey x1 x2 y1 y2; *)
           let smallest_size =
             Option.value_exn
             @@ List.min_elt ~compare:Int.compare
@@ -186,10 +186,9 @@ let part2 l =
                    y1 + y2 + x2 + ey;
                    x1 + x2 + y1 + ex;
                    x1 + x2 + y2 + ex;
-                   (* (2 * ey) + (2 * ex) + y1 + y2; << always > #2 *)
                  ]
           in
-          Stdio.printf "smallest size is ---> %d\n" smallest_size;
+          (* Stdio.printf "smallest size is ---> %d\n" smallest_size; *)
           n + smallest_size
           (* OK it's not incredibly simple, because the fully enclosed size
              means the edges around it need to be double reflected *)
@@ -234,9 +233,7 @@ let%test_unit "part2 (larger one)" =
 (* part3 is thankfully just part2 again but we have to handle the ebb being
    fully enclosed, which is simple *)
 
-let part3 l =
-  Stdio.printf "PART 3\n";
-  part2 l
+let part3 = part2
 
 (* let p3_example1 =
   [
