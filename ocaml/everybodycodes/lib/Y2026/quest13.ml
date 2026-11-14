@@ -120,13 +120,17 @@ let intersection_count clock other_clock t =
     if angle_diff < 0 then angle_diff + clock.hands else angle_diff
   in
   let distance_traveled = angle_diff + (velocity * t) in
+  Stdio.printf "->>> distance_travelled %d\n" distance_traveled;
   match
     if distance_traveled <= 0 then Some (-1 * distance_traveled)
+    else if equal_int angle_diff 0 then Some distance_traveled
     else if distance_traveled >= clock.hands then
       Some (distance_traveled - clock.hands)
     else None
   with
-  | Some o -> (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
+  | Some o ->
+      Stdio.printf "overage = %d\n" o;
+      (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
   | None -> 0
 
 let clocks_overlap clock other_clock =
@@ -182,6 +186,16 @@ let signals clocks =
           let num_signals =
             List.fold ~init:0
               ~f:(fun acc (clock1, clock2) ->
+                Stdio.printf "testing intersection symmetry ---\n";
+                let cnt = intersection_count clock1 clock2 t in
+                let other_cnt = intersection_count clock2 clock1 t in
+                if not (equal_int cnt other_cnt) then (
+                  Stdio.printf
+                    "intersection count not symmetric - %d clock1=%s clock2=%s \
+                     - %d %d\n"
+                    t (show_clock clock1) (show_clock clock2) cnt other_cnt;
+                  Out_channel.flush Stdio.stdout);
+                assert (equal_int cnt other_cnt);
                 acc + intersection_count clock1 clock2 t)
               (all_pairs clocks)
           in
@@ -222,6 +236,16 @@ let%test_unit "part1 (third)" =
        ])
 
 let part2 = part1
+
+let%test_unit "part2 - incorrect" =
+  [%test_result: int] ~expect:2095
+    (part2
+       [
+         "hands 4:12:24";
+         "direction CCW:CCW:CW";
+         "current 0:1:2";
+         "move 3560:2308:3800";
+       ])
 
 let p2_example1 =
   [
