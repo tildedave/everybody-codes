@@ -113,6 +113,33 @@ let%test_unit "all_pairs" =
     ~expect:[ (1, 2); (1, 3); (2, 3) ]
     (all_pairs [ 1; 2; 3 ])
 
+let intersection_count clock other_clock t =
+  let angle_diff = other_clock.current - clock.current in
+  let velocity = other_clock.delta - clock.delta in
+  let angle_diff =
+    if angle_diff < 0 then angle_diff + clock.hands else angle_diff
+  in
+  let distance_traveled = angle_diff + (velocity * t) in
+  match
+    if distance_traveled <= 0 then Some (-1 * distance_traveled)
+    else if distance_traveled >= clock.hands then
+      Some (distance_traveled - clock.hands)
+    else None
+  with
+  | Some o -> (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
+  | None -> 0
+
+(* clock travels angle_diff + velocity * t units.
+         this defines an interval
+         the answer is how many # of k * "hands" are contained in the interval *)
+(* (other_clock.current, (velocity * t) + angle_diff)
+         { hands = 4; current = 1; delta = 2; time_left = 0 }
+       { hands = 4; current = 2; delta = 1; time_left = 0 }) *)
+
+let clocks_overlap clock other_clock =
+  intersection_count clock other_clock 1 >= 1
+
+(*
 let clocks_overlap clock other_clock =
   (* OK think of movement relative to the first clock *)
   (* clock velocity = 0 -> and positive velocity is CW (say)
@@ -129,50 +156,43 @@ let clocks_overlap clock other_clock =
     let angle_diff =
       if angle_diff < 0 then angle_diff + clock.hands else angle_diff
     in
-    angle_diff + velocity <= 0 || angle_diff + velocity >= clock.hands
+    angle_diff + velocity <= 0 || angle_diff + velocity >= clock.hands *)
 
 let%test_unit "clocks_overlap (overtake)" =
   [%test_result: bool] ~expect:true
     (clocks_overlap
-       { hands = 4; current = 1; delta = 2; time_left = 0 }
-       { hands = 4; current = 2; delta = 1; time_left = 0 })
+       { hands = 4; current = 1; delta = 2; time_left = 1 }
+       { hands = 4; current = 2; delta = 1; time_left = 1 })
 
 let%test_unit
     "clocks_overlap (main clock moving away, they meet at the other end)" =
   [%test_result: bool] ~expect:true
     (clocks_overlap
-       { hands = 4; current = 1; delta = -2; time_left = 0 }
-       { hands = 4; current = 2; delta = 1; time_left = 0 })
+       { hands = 4; current = 1; delta = -2; time_left = 1 }
+       { hands = 4; current = 2; delta = 1; time_left = 1 })
 
 let%test_unit
     "clocks_overlap (main clock moving away, they cross at the other end)" =
   [%test_result: bool] ~expect:true
     (clocks_overlap
-       { hands = 5; current = 1; delta = -3; time_left = 0 }
-       { hands = 5; current = 2; delta = 2; time_left = 0 })
+       { hands = 5; current = 1; delta = -3; time_left = 1 }
+       { hands = 5; current = 2; delta = 2; time_left = 1 })
 
 let%test_unit "clocks_overlap (meet at center, wrap around)" =
   [%test_result: bool] ~expect:true
     (clocks_overlap
-       { hands = 24; current = 3; delta = -3; time_left = 0 }
-       { hands = 24; current = 22; delta = 2; time_left = 0 })
+       { hands = 24; current = 3; delta = -3; time_left = 1 }
+       { hands = 24; current = 22; delta = 2; time_left = 1 })
 
 let%test_unit "clocks_overlap (they don't meet, moving away from each other)" =
   [%test_result: bool] ~expect:false
     (clocks_overlap
-       { hands = 24; current = 12; delta = 4; time_left = 0 }
-       { hands = 24; current = 9; delta = -3; time_left = 0 })
+       { hands = 24; current = 12; delta = 4; time_left = 1 }
+       { hands = 24; current = 9; delta = -3; time_left = 1 })
 
-(*
-    ~expect:[ true; false; true; false; true ]
-    [
-      ;
-      clocks_overlap
-        { hands = 4; current = 1; delta = 2; time_left = 0 }
-        { hands = 4; current = 2; delta = -1; time_left = 0 };
-      clocks_overlap
-        ;
-    ] *)
+(* for part3 we must abandon tick.  challenge: after a clock has tocked its
+   last tick, it stays around.  so we need to count intersections between clocks
+   over a given period of time *)
 
 let signals clocks =
   Sequence.unfold ~init:clocks ~f:(fun clocks ->
@@ -261,7 +281,7 @@ let p2_example1 =
 let%test_unit "part2 (given)" =
   [%test_result: int] ~expect:21 (part2 p2_example1)
 
-let%test_unit "part2 (apparently my only bug" =
+let%test_unit "part2 (apparently my only bug)" =
   [%test_result: int] ~expect:1
     (part2
        [ "hands 10:10:10"; "direction CW:CW:CW"; "current 9:0:5"; "move 1:0:0" ])
