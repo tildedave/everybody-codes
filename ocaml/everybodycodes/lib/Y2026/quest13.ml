@@ -3,15 +3,11 @@
 open Base
 open Util
 
-(* let _ = Bignum.of_int 1 / Bignum.of_int 3 *)
-
 (*
  Every moving hand advances by exactly one of its positions per second.
  Its movement between two positions is smooth, so two hands may meet at any
  moment during that second, not only when they reach their next positions.
 *)
-
-(* OK it seems like we can use fractions here *)
 
 let parse_colons fmt s =
   Stdlib.Scanf.sscanf s fmt (fun s ->
@@ -120,7 +116,6 @@ let intersection_count clock other_clock t =
     if angle_diff < 0 then angle_diff + clock.hands else angle_diff
   in
   let distance_traveled = angle_diff + (velocity * t) in
-  Stdio.printf "->>> distance_travelled %d\n" distance_traveled;
   match
     if distance_traveled <= 0 then Some (-1 * distance_traveled)
     else if equal_int angle_diff 0 then Some distance_traveled
@@ -128,9 +123,7 @@ let intersection_count clock other_clock t =
       Some (distance_traveled - clock.hands)
     else None
   with
-  | Some o ->
-      Stdio.printf "overage = %d\n" o;
-      (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
+  | Some o -> (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
   | None -> 0
 
 let clocks_overlap clock other_clock =
@@ -182,20 +175,9 @@ let signals clocks =
       match next_stopping_time clocks with
       | None -> None
       | Some t ->
-          (* Stdio.printf "---- TICK ---- (%d)\n" t; *)
           let num_signals =
             List.fold ~init:0
               ~f:(fun acc (clock1, clock2) ->
-                Stdio.printf "testing intersection symmetry ---\n";
-                let cnt = intersection_count clock1 clock2 t in
-                let other_cnt = intersection_count clock2 clock1 t in
-                if not (equal_int cnt other_cnt) then (
-                  Stdio.printf
-                    "intersection count not symmetric - %d clock1=%s clock2=%s \
-                     - %d %d\n"
-                    t (show_clock clock1) (show_clock clock2) cnt other_cnt;
-                  Out_channel.flush Stdio.stdout);
-                assert (equal_int cnt other_cnt);
                 acc + intersection_count clock1 clock2 t)
               (all_pairs clocks)
           in
@@ -213,10 +195,7 @@ let part1 l =
   Sequence.sum
     (module Int)
     (parse_input l)
-    ~f:(fun sl ->
-      let r = Sequence.sum (module Int) (signals sl) ~f:Fn.id in
-      Stdio.printf "%d\n" r;
-      r)
+    ~f:(fun sl -> Sequence.sum (module Int) (signals sl) ~f:Fn.id)
 
 let%test_unit "part1 (first)" =
   [%test_result: int] ~expect:5 (part1 p1_example1)
