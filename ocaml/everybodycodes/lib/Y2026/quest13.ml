@@ -129,34 +129,8 @@ let intersection_count clock other_clock t =
   | Some o -> (if equal_int angle_diff 0 then 0 else 1) + (o / clock.hands)
   | None -> 0
 
-(* clock travels angle_diff + velocity * t units.
-         this defines an interval
-         the answer is how many # of k * "hands" are contained in the interval *)
-(* (other_clock.current, (velocity * t) + angle_diff)
-         { hands = 4; current = 1; delta = 2; time_left = 0 }
-       { hands = 4; current = 2; delta = 1; time_left = 0 }) *)
-
 let clocks_overlap clock other_clock =
   intersection_count clock other_clock 1 >= 1
-
-(*
-let clocks_overlap clock other_clock =
-  (* OK think of movement relative to the first clock *)
-  (* clock velocity = 0 -> and positive velocity is CW (say)
-     other clock velocity = *)
-  (* angle_diff = distance, velocity = distance / second,
-     if velocity * 1 second >= angle_diff then overlap *)
-  let angle_diff = other_clock.current - clock.current in
-  if equal_int angle_diff 0 then
-    false (* we counted this as an intersection on the previous cycle *)
-  else
-    let velocity = other_clock.delta - clock.delta in
-    (* in 1 second, we travel velocity angle units. *)
-    (* normalize angle_diff relative to the clock *)
-    let angle_diff =
-      if angle_diff < 0 then angle_diff + clock.hands else angle_diff
-    in
-    angle_diff + velocity <= 0 || angle_diff + velocity >= clock.hands *)
 
 let%test_unit "clocks_overlap (overtake)" =
   [%test_result: bool] ~expect:true
