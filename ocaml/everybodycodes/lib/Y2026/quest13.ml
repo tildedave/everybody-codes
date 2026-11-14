@@ -89,15 +89,15 @@ let%test_unit "parse_lines" =
 
 let is_done clock = equal_int clock.time_left 0
 
-let tick clock =
+let tick t clock =
   if is_done clock then clock
   else
-    let next_current = clock.current + clock.delta in
+    let next_current = clock.current + (clock.delta * t) in
     {
       clock with
       current = mod_positive next_current clock.hands;
-      time_left = clock.time_left - 1;
-      delta = (if equal_int clock.time_left 1 then 0 else clock.delta);
+      time_left = clock.time_left - t;
+      delta = (if equal_int clock.time_left t then 0 else clock.delta);
     }
 
 let pair i x = (i, x)
@@ -194,35 +194,24 @@ let%test_unit "clocks_overlap (they don't meet, moving away from each other)" =
    last tick, it stays around.  so we need to count intersections between clocks
    over a given period of time *)
 
+let next_stopping_time clocks =
+  clocks
+  |> List.filter_map ~f:(fun c -> if is_done c then None else Some c.time_left)
+  |> List.min_elt ~compare:Int.compare
+
 let signals clocks =
   Sequence.unfold ~init:clocks ~f:(fun clocks ->
-      (* Stdio.printf "---- TICK ----\n"; *)
-      if List.for_all ~f:is_done clocks then None
-      else
-        let num_signals =
-          List.fold ~init:0
-            ~f:(fun acc (clock1, clock2) ->
-              if clocks_overlap clock1 clock2 then
-                (* Stdio.printf "\tclocks overlap %s -> %s\n" (show_clock clock1)
-                  (show_clock clock2); *)
-                acc + 1
-              else
-                (* Stdio.printf "\tno overlap %s -> %s\n" (show_clock clock1)
-                  (show_clock clock2); *)
-                acc)
-            (* 1 was previously at current/hands, then goes to current / hands
-              (* can treat this as an interval I guess.  no more mods means we're
-           continuous *)
-              (* let i1 = to_interval prev1 next1 in
-              let i2 = to_interval prev2 next2 in *)
-              (* this is not correct since we have some issues near the origin *)
-              if overlaps i1 i2 then (
-                Stdio.printf "i1 = %s\n" (show_interval i1);
-                Stdio.printf "i2 = %s\n" (show_interval i2);
-                acc + 1) *)
-            (all_pairs clocks)
-        in
-        Some (num_signals, List.map ~f:tick clocks))
+      match next_stopping_time clocks with
+      | None -> None
+      | Some t ->
+          (* Stdio.printf "---- TICK ---- (%d)\n" t; *)
+          let num_signals =
+            List.fold ~init:0
+              ~f:(fun acc (clock1, clock2) ->
+                acc + intersection_count clock1 clock2 t)
+              (all_pairs clocks)
+          in
+          Some (num_signals, List.map ~f:(tick t) clocks))
 
 let parse_input l =
   Sequence.unfold ~init:l ~f:(function
