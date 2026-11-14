@@ -9,6 +9,9 @@ val (--): int -> int -> int list
 val set_add_all: ('a, 'b) Base.Set.t -> 'a list -> ('a, 'b) Base.Set.t
 val string_to_int_list: ?on:char -> string -> int list
 val crt_inductive: (int * int) list -> int
+val gcd : int -> int -> int
+val lcm : int -> int -> int
+
 
 module IntPair : sig
   type t = int * int

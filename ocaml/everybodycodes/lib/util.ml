@@ -49,8 +49,16 @@ let euclid_extended u v =
   in
   loop (1, 0, u) (0, 1, v)
 
+let gcd u v =
+  let _, _, g = euclid_extended u v in
+  g
+
+let lcm a b = if a = 0 || b = 0 then 0 else abs (a / gcd a b * b)
+
 let%test_unit "euclid extended" =
   [%test_eq: int * int * int] (337, -571, 34) (euclid_extended 40902 24140)
+
+let%test_unit "lcm" = [%test_result: int] ~expect:36 (lcm 12 9)
 
 (* Course in Computational Number Theory, 1.3.12 *)
 let crt_inductive residues =
