@@ -1,3 +1,5 @@
+[@@@ocaml.warning "-27-26-31-32"]
+
 open Base
 open Util
 
@@ -23,5 +25,119 @@ let part1 l =
   (count_connections g / 2) + (2 * xmax) + (2 * ymax)
 
 let%test_unit "part1" = [%test_eq: int] 67 (part1 example)
-let part2 _ = 1
+
+(* part2 -- we have to pick what an edge looks like, let's
+   say x = LEFT edge, y = BOTTOM edge, then we need to iterate from
+   y = -1 -> y, x = 0 -> xmax (inclusive).  for each component we keep track
+   of edge coords then we can organize by x/y and then build a MST.  *)
+
+let add_if_not_matching g coord other_coord m =
+  match (grid_at_opt g coord, grid_at_opt g other_coord) with
+  | None, Some _ ->
+      m (* I think this case doesn't matter since we're only looking left *)
+  | Some ch, None -> Map.add_multi m ~key:ch ~data:(None, other_coord)
+  | None, None -> m
+  | Some ch, Some ch' ->
+      if equal_char ch ch' then m
+      else Map.add_multi m ~key:ch ~data:(Some ch', other_coord)
+
+let find_edges g =
+  let xmax, ymax = g.bounds in
+  let indices =
+    let open Sequence.Let_syntax in
+    let%bind y = Sequence.range (-1) ymax in
+    let%map x = Sequence.range 0 xmax ~start:`inclusive in
+    (x, y)
+  in
+  (* I suppose we can't use the neighbor logic *)
+  Sequence.fold
+    ~init:(Map.empty (module Char), Map.empty (module Char))
+    ~f:(fun (horizontal_m, vertical_m) coord ->
+      let cx, cy = coord in
+      ( add_if_not_matching g coord (cx - 1, cy) horizontal_m,
+        add_if_not_matching g coord (cx, cy + 1) vertical_m ))
+    indices
+
+(* now we group horizontal and vertical edges together *)
+
+let _print_map label =
+  Map.iteri ~f:(fun ~key ~data ->
+      Stdio.printf "[%s] %c --> %s\n" label key
+        (String.concat ~sep:","
+           (List.map
+              ~f:(fun (ch_opt, coord) ->
+                Printf.sprintf "(%s, %s)"
+                  (match ch_opt with
+                  | None -> "<void>"
+                  | Some ch -> Char.to_string ch)
+                  (show_tuple coord))
+              data)))
+
+(* OK construct edges between the components and then run a MST algo *)
+
+(* graph is an adjacency list *)
+
+module CharOption = struct
+  type t = char option [@@deriving compare, sexp_of, equal]
+
+  let hash = Hashtbl.hash
+end
+
+module CharOption_Comparator = struct
+  include CharOption
+  include Base.Comparator.Make (CharOption)
+end
+
+let add_edges m ~proj graph =
+  Map.fold ~init:graph
+    ~f:(fun ~key ~data graph ->
+      (* these are all the edges from a component to another, with the coord *)
+      let component_map =
+        Map.of_alist_multi (module CharOption_Comparator) data
+      in
+      Map.fold ~init:graph
+        ~f:(fun ~key:ch_opt ~data graph ->
+          let cnts =
+            List.fold
+              ~init:(Map.empty (module Int))
+              ~f:(fun acc coord ->
+                Map.update acc (proj coord) ~f:(function
+                  | None -> 1
+                  | Some n -> n + 1))
+              data
+          in
+          Map.fold ~init:graph
+            ~f:(fun ~key:_ ~data:weight graph ->
+              Map.add_multi graph ~key ~data:(ch_opt, weight))
+            cnts)
+        component_map)
+    m
+
+(* this seems to work *)
+let _print_tree =
+  Map.iteri ~f:(fun ~key ~data ->
+      Stdio.printf "%c ---> %s\n" key
+        (String.concat ~sep:","
+           (List.map
+              ~f:(fun (ch_opt, weight) ->
+                Printf.sprintf "(%s, %d)"
+                  (match ch_opt with
+                  | None -> "<outside>"
+                  | Some ch -> Char.to_string ch)
+                  weight)
+              data)))
+
+let part2 l =
+  let g = to_grid l in
+  let horizontal, vertical = find_edges g in
+  let graph =
+    Map.empty (module Char)
+    |> add_edges horizontal ~proj:fst
+    |> add_edges vertical ~proj:snd
+  in
+  _print_tree graph;
+  (* let _ = add_edges graph horizontal ~proj:fst in *)
+  1
+
+let%test_unit "part2" = [%test_eq: int] 12 (part2 example)
 let part3 _ = 1

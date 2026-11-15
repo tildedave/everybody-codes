@@ -105,6 +105,11 @@ let to_grid l =
 
 let grid_at grid (x, y) = grid.cells.(y).(x)
 
+let grid_at_opt grid (x, y) =
+  match grid_at grid (x, y) with
+  | v -> Some v
+  | exception Invalid_argument _ -> None
+
 let grid_foldi grid ~f ~init =
   Array.foldi ~init
     ~f:(fun y acc arr ->

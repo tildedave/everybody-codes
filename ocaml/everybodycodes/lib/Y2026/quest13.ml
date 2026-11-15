@@ -1,5 +1,3 @@
-[@@@ocaml.warning "-31-32"]
-
 open Base
 open Util
 

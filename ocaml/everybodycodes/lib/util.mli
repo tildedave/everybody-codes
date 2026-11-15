@@ -12,7 +12,6 @@ val crt_inductive: (int * int) list -> int
 val gcd : int -> int -> int
 val lcm : int -> int -> int
 
-
 module IntPair : sig
   type t = int * int
 
@@ -37,6 +36,7 @@ type grid = { cells : char array array; bounds : int * int }
 val to_grid: string list -> grid
 val grid_foldi: grid -> f:(int * int -> 'a -> char -> 'a) -> init:'a -> 'a
 val grid_at: grid -> int * int -> char
+val grid_at_opt: grid -> int * int -> char option
 val grid_neighbors : (int * int) list -> grid -> int * int -> (int * int) list
 val grid_cardinal_neighbors: grid -> int * int -> (int * int) list
 val grid_diagonal_neighbors: grid -> int * int -> (int * int) list
