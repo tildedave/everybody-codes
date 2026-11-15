@@ -30,16 +30,25 @@ let%test_unit "part1" = [%test_eq: int] 67 (part1 example)
    say x = LEFT edge, y = BOTTOM edge, then we need to iterate from
    y = -1 -> y, x = 0 -> xmax (inclusive).  for each component we keep track
    of edge coords then we can organize by x/y and then build a MST.  *)
+module CharOption = struct
+  type t = char option [@@deriving compare, sexp_of, equal]
+
+  let hash = Hashtbl.hash
+end
+
+module CharOption_Comparator = struct
+  include CharOption
+  include Base.Comparator.Make (CharOption)
+end
 
 let add_if_not_matching g coord other_coord m =
   match (grid_at_opt g coord, grid_at_opt g other_coord) with
-  | None, Some _ ->
-      m (* I think this case doesn't matter since we're only looking left *)
-  | Some ch, None -> Map.add_multi m ~key:ch ~data:(None, other_coord)
+  | None, Some ch -> Map.add_multi m ~key:None ~data:(Some ch, other_coord)
+  | Some ch, None -> Map.add_multi m ~key:(Some ch) ~data:(None, other_coord)
   | None, None -> m
   | Some ch, Some ch' ->
       if equal_char ch ch' then m
-      else Map.add_multi m ~key:ch ~data:(Some ch', other_coord)
+      else Map.add_multi m ~key:(Some ch) ~data:(Some ch', other_coord)
 
 let find_edges g =
   let xmax, ymax = g.bounds in
@@ -51,11 +60,13 @@ let find_edges g =
   in
   (* I suppose we can't use the neighbor logic *)
   Sequence.fold
-    ~init:(Map.empty (module Char), Map.empty (module Char))
+    ~init:
+      ( Map.empty (module CharOption_Comparator),
+        Map.empty (module CharOption_Comparator) )
     ~f:(fun (horizontal_m, vertical_m) coord ->
       let cx, cy = coord in
-      ( add_if_not_matching g coord (cx - 1, cy) horizontal_m,
-        add_if_not_matching g coord (cx, cy + 1) vertical_m ))
+      ( horizontal_m |> add_if_not_matching g coord (cx - 1, cy),
+        vertical_m |> add_if_not_matching g coord (cx, cy + 1) ))
     indices
 
 (* now we group horizontal and vertical edges together *)
@@ -77,17 +88,6 @@ let _print_map label =
 
 (* graph is an adjacency list *)
 
-module CharOption = struct
-  type t = char option [@@deriving compare, sexp_of, equal]
-
-  let hash = Hashtbl.hash
-end
-
-module CharOption_Comparator = struct
-  include CharOption
-  include Base.Comparator.Make (CharOption)
-end
-
 let add_edges m ~proj graph =
   Map.fold ~init:graph
     ~f:(fun ~key ~data graph ->
@@ -108,30 +108,32 @@ let add_edges m ~proj graph =
           in
           Map.fold ~init:graph
             ~f:(fun ~key:_ ~data:weight graph ->
-              Map.add_multi graph ~key ~data:(ch_opt, weight))
+              graph
+              (* add both directions so we're undirected *)
+              |> Map.add_multi ~key ~data:(ch_opt, weight)
+              |> Map.add_multi ~key:ch_opt ~data:(key, weight))
             cnts)
         component_map)
     m
 
+let show_component ch_opt =
+  match ch_opt with None -> "<outside>" | Some ch -> Char.to_string ch
+
 (* this seems to work *)
 let _print_tree =
   Map.iteri ~f:(fun ~key ~data ->
-      Stdio.printf "%c ---> %s\n" key
+      Stdio.printf "%s ---> %s\n" (show_component key)
         (String.concat ~sep:","
            (List.map
               ~f:(fun (ch_opt, weight) ->
-                Printf.sprintf "(%s, %d)"
-                  (match ch_opt with
-                  | None -> "<outside>"
-                  | Some ch -> Char.to_string ch)
-                  weight)
+                Printf.sprintf "(%s, %d)" (show_component ch_opt) weight)
               data)))
 
 let part2 l =
   let g = to_grid l in
   let horizontal, vertical = find_edges g in
   let graph =
-    Map.empty (module Char)
+    Map.empty (module CharOption_Comparator)
     |> add_edges horizontal ~proj:fst
     |> add_edges vertical ~proj:snd
   in
