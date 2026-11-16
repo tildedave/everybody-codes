@@ -63,8 +63,8 @@ let add_if_not_matching g coord other_coord m =
   | None, Some ch -> increment m None (Some ch)
   | Some ch, None -> increment m (Some ch) None
   | None, None -> m
-  | Some ch, Some ch' ->
-      if equal_char ch ch' then m else increment m (Some ch) (Some ch')
+  | Some ch, Some ch' when equal_char ch ch' -> m
+  | Some ch, Some ch' -> increment m (Some ch) (Some ch')
 
 let find_edges g =
   let xmax, ymax = g.bounds in
