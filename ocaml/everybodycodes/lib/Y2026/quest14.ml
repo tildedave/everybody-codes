@@ -2,6 +2,7 @@
 
 open Base
 open Util
+open Core
 
 let example =
   [ "AAAEEEFFFF"; "AADDDDDGFF"; "BACDDIGGFF"; "BABBIIIGGH"; "BBBBIIIIHH" ]
@@ -39,6 +40,17 @@ end
 module CharOption_Comparator = struct
   include CharOption
   include Base.Comparator.Make (CharOption)
+end
+
+module Edge = struct
+  type t = char option * char option * int [@@deriving compare, sexp_of, equal]
+
+  let hash = Hashtbl.hash
+end
+
+module Edge_Comparator = struct
+  include Edge
+  include Base.Comparable.Make (Edge)
 end
 
 let add_if_not_matching g coord other_coord m =
@@ -129,6 +141,69 @@ let _print_tree =
                 Printf.sprintf "(%s, %d)" (show_component ch_opt) weight)
               data)))
 
+(* MST algo: we'll use Boruvka's algo per Jeff Erickson.  Good ol UIUC *)
+
+let count_components m_mst =
+  m_mst
+  |> Map.fold
+       ~init:(Set.empty (module CharOption_Comparator))
+       ~f:(fun ~key:_ ~data acc -> Set.add acc (Union_find.get data))
+  |> Set.length
+
+let minimum_spanning_tree graph =
+  _print_tree graph;
+  let components =
+    Map.of_alist_exn
+      (module CharOption_Comparator)
+      (List.map (Map.keys graph) ~f:(fun k -> (k, Union_find.create k)))
+  in
+  let rec helper minset =
+    let count = count_components components in
+    if count > 1 then
+      let safe_edges =
+        Map.fold
+          ~init:(Map.empty (module CharOption_Comparator))
+          ~f:(fun ~key:u ~data safe_edges ->
+            List.fold ~init:safe_edges
+              ~f:(fun safe_edges (v, w) ->
+                (* test if key and ch_opt are in the same component *)
+                let u_uf, v_uf =
+                  (Map.find_exn components u, Map.find_exn components v)
+                in
+                if Union_find.same_class u_uf v_uf then safe_edges
+                else
+                  ( safe_edges |> fun m ->
+                    Map.update m u ~f:(function
+                      | None -> (v, w)
+                      | Some (v', w') -> if w < w' then (v, w) else (v', w')) )
+                  |> fun m ->
+                  Map.update m v ~f:(function
+                    | None -> (u, w)
+                    | Some (u', w') -> if w < w' then (u, w) else (u', w')))
+              data)
+          graph
+      in
+      (* now we add all the edges to the same class, then add the counts to
+         the minset *)
+      let next_minset =
+        Map.fold ~init:minset safe_edges ~f:(fun ~key:u ~data:(v, w) minset ->
+            let u_uf, v_uf =
+              (Map.find_exn components u, Map.find_exn components v)
+            in
+            if Set.mem minset (v, u, w) then minset
+            else (
+              Stdio.printf "adding edge %s ---> %s [weight %d]\n"
+                (show_component u) (show_component v) w;
+              Union_find.union u_uf v_uf;
+              Set.add minset (u, v, w)))
+      in
+      helper next_minset
+    else minset
+  in
+  helper (Set.empty (module Edge_Comparator))
+
+(* find safe edges - *)
+
 let part2 l =
   let g = to_grid l in
   let horizontal, vertical = find_edges g in
@@ -139,7 +214,7 @@ let part2 l =
   in
   _print_tree graph;
   (* let _ = add_edges graph horizontal ~proj:fst in *)
-  1
+  Set.sum (module Int) (minimum_spanning_tree graph) ~f:(fun (_, _, w) -> w)
 
 let%test_unit "part2" = [%test_eq: int] 12 (part2 example)
 let part3 _ = 1
