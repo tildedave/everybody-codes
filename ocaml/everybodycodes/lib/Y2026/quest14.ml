@@ -66,20 +66,29 @@ let find_edges g =
   let xmax, ymax = g.bounds in
   let indices =
     let open Sequence.Let_syntax in
-    let%bind y = Sequence.range (-1) ymax in
-    let%map x = Sequence.range 0 xmax ~start:`inclusive in
+    let%bind y = Sequence.range (-1) ymax ~start:`inclusive ~stop:`inclusive in
+    let%map x = Sequence.range (-1) xmax ~start:`inclusive ~stop:`inclusive in
     (x, y)
   in
   (* I suppose we can't use the neighbor logic *)
   Sequence.fold
-    ~init:
-      ( Map.empty (module CharOption_Comparator),
-        Map.empty (module CharOption_Comparator) )
-    ~f:(fun (horizontal_m, vertical_m) coord ->
+    ~init:(Map.empty (module CharOption_Comparator))
+    ~f:(fun m coord ->
       let cx, cy = coord in
-      ( horizontal_m |> add_if_not_matching g coord (cx - 1, cy),
-        vertical_m |> add_if_not_matching g coord (cx, cy + 1) ))
+      m
+      |> add_if_not_matching g coord (cx - 1, cy)
+      |> add_if_not_matching g coord (cx, cy + 1)
+      |> add_if_not_matching g coord (cx + 1, cy)
+      |> add_if_not_matching g coord (cx, cy - 1))
     indices
+  |> Map.fold
+       ~init:(Map.empty (module CharOption_Comparator))
+       ~f:(fun ~key:u ~data m ->
+         let component_map =
+           Map.of_alist_multi (module CharOption_Comparator) data
+         in
+         Map.fold component_map ~init:m ~f:(fun ~key:v ~data:l m ->
+             Map.add_multi m ~key:u ~data:(v, List.length l)))
 
 (* now we group horizontal and vertical edges together *)
 
@@ -100,7 +109,7 @@ let _print_map label =
 
 (* graph is an adjacency list *)
 
-let add_edges m ~proj graph =
+(* let add_edges m graph =
   Map.fold ~init:graph
     ~f:(fun ~key ~data graph ->
       (* these are all the edges from a component to another, with the coord *)
@@ -126,7 +135,7 @@ let add_edges m ~proj graph =
               |> Map.add_multi ~key:ch_opt ~data:(key, weight))
             cnts)
         component_map)
-    m
+    m *)
 
 let show_component ch_opt =
   match ch_opt with None -> "<outside>" | Some ch -> Char.to_string ch
@@ -151,7 +160,6 @@ let count_components m_mst =
   |> Set.length
 
 let minimum_spanning_tree graph =
-  _print_tree graph;
   let components =
     Map.of_alist_exn
       (module CharOption_Comparator)
@@ -172,28 +180,34 @@ let minimum_spanning_tree graph =
                 in
                 if Union_find.same_class u_uf v_uf then safe_edges
                 else
+                  (* Stdio.printf "different class, time to add edges\n"; *)
                   ( safe_edges |> fun m ->
-                    Map.update m u ~f:(function
-                      | None -> (v, w)
-                      | Some (v', w') -> if w < w' then (v, w) else (v', w')) )
+                    Map.update m (Union_find.get u_uf) ~f:(function
+                      | None -> (u, v, w)
+                      | Some (u', v', w') ->
+                          if w < w' then (u, v, w) else (u', v', w')) )
                   |> fun m ->
-                  Map.update m v ~f:(function
-                    | None -> (u, w)
-                    | Some (u', w') -> if w < w' then (u, w) else (u', w')))
+                  Map.update m (Union_find.get v_uf) ~f:(function
+                    | None -> (v, u, w)
+                    | Some (v', u', w') ->
+                        if w < w' then (v, u, w) else (v', u', w')))
               data)
           graph
       in
       (* now we add all the edges to the same class, then add the counts to
          the minset *)
+      (* Stdio.printf "safe time!\n";
+      Map.iteri safe_edges ~f:(fun ~key:_ ~data:(u, v, w) ->
+          Stdio.printf "(%s, %s) weight %d\n" (show_component u)
+            (show_component v) w); *)
       let next_minset =
-        Map.fold ~init:minset safe_edges ~f:(fun ~key:u ~data:(v, w) minset ->
+        Map.fold ~init:minset safe_edges
+          ~f:(fun ~key:_ ~data:(u, v, w) minset ->
             let u_uf, v_uf =
               (Map.find_exn components u, Map.find_exn components v)
             in
             if Set.mem minset (v, u, w) then minset
             else (
-              Stdio.printf "adding edge %s ---> %s [weight %d]\n"
-                (show_component u) (show_component v) w;
               Union_find.union u_uf v_uf;
               Set.add minset (u, v, w)))
       in
@@ -206,15 +220,27 @@ let minimum_spanning_tree graph =
 
 let part2 l =
   let g = to_grid l in
-  let horizontal, vertical = find_edges g in
-  let graph =
-    Map.empty (module CharOption_Comparator)
-    |> add_edges horizontal ~proj:fst
-    |> add_edges vertical ~proj:snd
-  in
-  _print_tree graph;
+  let graph = find_edges g in
   (* let _ = add_edges graph horizontal ~proj:fst in *)
   Set.sum (module Int) (minimum_spanning_tree graph) ~f:(fun (_, _, w) -> w)
 
-let%test_unit "part2" = [%test_eq: int] 12 (part2 example)
+let%test_unit "part2" = [%test_result: int] ~expect:12 (part2 example)
+
+let p2_example2 =
+  [
+    "IIIIIILOHHHHHHHHGGGGGQSRRRRKKK";
+    "IIIIIILOOHHHHHHGGXGGGQSRRRRKKK";
+    "PPPPILLLOOOODDHBGGGGGQSSRRRKKK";
+    "PPZPLLLLFFOODDBBBBGGQQQSSRKKKK";
+    "PPPPLLLLFFFONDDDBBMGGQQSSKKJJJ";
+    "PPPCCCCCCFFONNDDMMMGQQQSSSKJJJ";
+    "PCCCCCCCCFFNNDDDDMAAQQQSSSKKJJ";
+    "PPCCECCCFFNNNNDADMAATQTTSSSJJJ";
+    "PPEEEEECCFFNNAAAMMATTTTTSTSSSJ";
+    "PPEEEEEEEFFNNNAAAAAATTTTTTSSJJ";
+  ]
+
+let%test_unit "part2 (second example)" =
+  [%test_result: int] ~expect:63 (part2 p2_example2)
+
 let part3 _ = 1
