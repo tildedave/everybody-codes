@@ -90,8 +90,6 @@ let find_edges g =
          Map.fold component_map ~init:m ~f:(fun ~key:v ~data:l m ->
              Map.add_multi m ~key:u ~data:(v, List.length l)))
 
-(* now we group horizontal and vertical edges together *)
-
 let _print_map label =
   Map.iteri ~f:(fun ~key ~data ->
       Stdio.printf "[%s] %c --> %s\n" label key
@@ -104,10 +102,6 @@ let _print_map label =
                   | Some ch -> Char.to_string ch)
                   (show_tuple coord))
               data)))
-
-(* OK construct edges between the components and then run a MST algo *)
-
-(* graph is an adjacency list *)
 
 let show_component ch_opt =
   match ch_opt with None -> "<outside>" | Some ch -> Char.to_string ch
@@ -131,7 +125,31 @@ let count_components m_mst =
        ~f:(fun ~key:_ ~data acc -> Set.add acc (Union_find.get data))
   |> Set.length
 
-let mst graph components =
+let edge_set graph =
+  Map.fold
+    ~init:(Set.empty (module Edge_Comparator))
+    ~f:(fun ~key:u ~data edge_set ->
+      List.fold ~init:edge_set
+        ~f:(fun edge_set (v, w) -> Set.add edge_set (u, v, w))
+        data)
+    graph
+
+let _mst_kruskal graph components =
+  edge_set graph |> Set.to_list
+  |> List.sort ~compare:(Comparable.lift compare ~f:(fun (_, _, w) -> w))
+  |> List.fold
+       ~init:(Set.empty (module Edge_Comparator))
+       ~f:(fun minset (u, v, w) ->
+         let u_uf, v_uf =
+           (Map.find_exn components u, Map.find_exn components v)
+         in
+         if Union_find.same_class u_uf v_uf then minset
+         else begin
+           Union_find.union u_uf v_uf;
+           Set.add minset (u, v, w)
+         end)
+
+let _mst_boruvka graph components =
   let rec helper minset =
     let count = count_components components in
     if count > 1 then
@@ -178,6 +196,8 @@ let mst graph components =
     else minset
   in
   helper (Set.empty (module Edge_Comparator))
+
+let mst = _mst_kruskal
 
 let to_uf_components graph =
   Map.of_alist_exn
