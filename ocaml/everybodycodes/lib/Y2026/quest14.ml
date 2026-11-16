@@ -109,34 +109,6 @@ let _print_map label =
 
 (* graph is an adjacency list *)
 
-(* let add_edges m graph =
-  Map.fold ~init:graph
-    ~f:(fun ~key ~data graph ->
-      (* these are all the edges from a component to another, with the coord *)
-      let component_map =
-        Map.of_alist_multi (module CharOption_Comparator) data
-      in
-      Map.fold ~init:graph
-        ~f:(fun ~key:ch_opt ~data graph ->
-          let cnts =
-            List.fold
-              ~init:(Map.empty (module Int))
-              ~f:(fun acc coord ->
-                Map.update acc (proj coord) ~f:(function
-                  | None -> 1
-                  | Some n -> n + 1))
-              data
-          in
-          Map.fold ~init:graph
-            ~f:(fun ~key:_ ~data:weight graph ->
-              graph
-              (* add both directions so we're undirected *)
-              |> Map.add_multi ~key ~data:(ch_opt, weight)
-              |> Map.add_multi ~key:ch_opt ~data:(key, weight))
-            cnts)
-        component_map)
-    m *)
-
 let show_component ch_opt =
   match ch_opt with None -> "<outside>" | Some ch -> Char.to_string ch
 
@@ -221,7 +193,6 @@ let minimum_spanning_tree graph =
 let part2 l =
   let g = to_grid l in
   let graph = find_edges g in
-  (* let _ = add_edges graph horizontal ~proj:fst in *)
   Set.sum (module Int) (minimum_spanning_tree graph) ~f:(fun (_, _, w) -> w)
 
 let%test_unit "part2" = [%test_result: int] ~expect:12 (part2 example)
