@@ -53,14 +53,18 @@ module Edge_Comparator = struct
   include Base.Comparable.Make (Edge)
 end
 
+let increment m k1 k2 =
+  Map.update m k1 ~f:(function
+    | None -> Map.singleton (module CharOption_Comparator) k2 1
+    | Some m' -> Map.update m' k2 ~f:(function None -> 1 | Some n -> n + 1))
+
 let add_if_not_matching g coord other_coord m =
   match (grid_at_opt g coord, grid_at_opt g other_coord) with
-  | None, Some ch -> Map.add_multi m ~key:None ~data:(Some ch, other_coord)
-  | Some ch, None -> Map.add_multi m ~key:(Some ch) ~data:(None, other_coord)
+  | None, Some ch -> increment m None (Some ch)
+  | Some ch, None -> increment m (Some ch) None
   | None, None -> m
   | Some ch, Some ch' ->
-      if equal_char ch ch' then m
-      else Map.add_multi m ~key:(Some ch) ~data:(Some ch', other_coord)
+      if equal_char ch ch' then m else increment m (Some ch) (Some ch')
 
 let find_edges g =
   let xmax, ymax = g.bounds in
@@ -81,14 +85,14 @@ let find_edges g =
       |> add_if_not_matching g coord (cx + 1, cy)
       |> add_if_not_matching g coord (cx, cy - 1))
     indices
-  |> Map.fold
+(* |> Map.fold
        ~init:(Map.empty (module CharOption_Comparator))
        ~f:(fun ~key:u ~data m ->
          let component_map =
            Map.of_alist_multi (module CharOption_Comparator) data
          in
          Map.fold component_map ~init:m ~f:(fun ~key:v ~data:l m ->
-             Map.add_multi m ~key:u ~data:(v, List.length l)))
+             Map.add_multi m ~key:u ~data:(v, List.length l))) *)
 
 let _print_map label =
   Map.iteri ~f:(fun ~key ~data ->
@@ -129,8 +133,8 @@ let edge_set graph =
   Map.fold
     ~init:(Set.empty (module Edge_Comparator))
     ~f:(fun ~key:u ~data edge_set ->
-      List.fold ~init:edge_set
-        ~f:(fun edge_set (v, w) -> Set.add edge_set (u, v, w))
+      Map.fold ~init:edge_set
+        ~f:(fun ~key:v ~data:w edge_set -> Set.add edge_set (u, v, w))
         data)
     graph
 
@@ -231,9 +235,9 @@ let%test_unit "part2 (second example)" =
   [%test_result: int] ~expect:63 (part2 p2_example2)
 
 let spell_of_binding graph components u =
-  let l = Map.find_exn graph u in
+  let u_map = Map.find_exn graph u in
   let u_uf = Map.find_exn components u in
-  List.iter l ~f:(fun (v, _) ->
+  Map.iter_keys u_map ~f:(fun v ->
       let v_uf = Map.find_exn components v in
       Union_find.union u_uf v_uf)
 
