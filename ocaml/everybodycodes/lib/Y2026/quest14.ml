@@ -131,12 +131,7 @@ let count_components m_mst =
        ~f:(fun ~key:_ ~data acc -> Set.add acc (Union_find.get data))
   |> Set.length
 
-let minimum_spanning_tree graph =
-  let components =
-    Map.of_alist_exn
-      (module CharOption_Comparator)
-      (List.map (Map.keys graph) ~f:(fun k -> (k, Union_find.create k)))
-  in
+let mst graph components =
   let rec helper minset =
     let count = count_components components in
     if count > 1 then
@@ -167,11 +162,7 @@ let minimum_spanning_tree graph =
           graph
       in
       (* now we add all the edges to the same class, then add the counts to
-         the minset *)
-      (* Stdio.printf "safe time!\n";
-      Map.iteri safe_edges ~f:(fun ~key:_ ~data:(u, v, w) ->
-          Stdio.printf "(%s, %s) weight %d\n" (show_component u)
-            (show_component v) w); *)
+           the minset *)
       let next_minset =
         Map.fold ~init:minset safe_edges
           ~f:(fun ~key:_ ~data:(u, v, w) minset ->
@@ -188,12 +179,17 @@ let minimum_spanning_tree graph =
   in
   helper (Set.empty (module Edge_Comparator))
 
-(* find safe edges - *)
+let to_uf_components graph =
+  Map.of_alist_exn
+    (module CharOption_Comparator)
+    (List.map (Map.keys graph) ~f:(fun k -> (k, Union_find.create k)))
+
+let sum_weights s = Set.sum (module Int) s ~f:(fun (_, _, w) -> w)
 
 let part2 l =
   let g = to_grid l in
   let graph = find_edges g in
-  Set.sum (module Int) (minimum_spanning_tree graph) ~f:(fun (_, _, w) -> w)
+  sum_weights (mst graph (to_uf_components graph))
 
 let%test_unit "part2" = [%test_result: int] ~expect:12 (part2 example)
 
@@ -214,4 +210,28 @@ let p2_example2 =
 let%test_unit "part2 (second example)" =
   [%test_result: int] ~expect:63 (part2 p2_example2)
 
-let part3 _ = 1
+let spell_of_binding graph components u =
+  let l = Map.find_exn graph u in
+  let u_uf = Map.find_exn components u in
+  List.iter l ~f:(fun (v, _) ->
+      let v_uf = Map.find_exn components v in
+      Union_find.union u_uf v_uf)
+
+let part3 l =
+  let g = to_grid l in
+  let graph = find_edges g in
+  all_pairs (List.filter ~f:Option.is_some (Map.keys graph))
+  |> List.map ~f:(fun (u, v) ->
+      let components = to_uf_components graph in
+      spell_of_binding graph components u;
+      spell_of_binding graph components v;
+      sum_weights @@ mst graph components)
+  (* |> (fun l ->
+  l |> List.sort ~compare |> List.map ~f:Int.to_string |> String.concat ~sep:","
+  |> Stdio.printf "%s\n";
+  l) *)
+  |> List.min_elt ~compare
+  |> Option.value_exn
+
+let%test_unit "part3" = [%test_result: int] ~expect:0 (part3 example)
+let%test_unit "part3" = [%test_result: int] ~expect:21 (part3 p2_example2)

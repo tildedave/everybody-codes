@@ -181,3 +181,15 @@ let isqrt_nonrecurive isqrt n =
     if large * large > n then small else large
 
 let isqrt = Memo.recursive ~hashable:Int.hashable isqrt_nonrecurive
+let pair i x = (i, x)
+
+let all_pairs l =
+  List.filter_map
+    ~f:(fun ((i, x), (j, y)) ->
+      if equal i j then None else if i > j then None else Some (x, y))
+    (List.cartesian_product (List.mapi ~f:pair l) (List.mapi ~f:pair l))
+
+let%test_unit "all_pairs" =
+  [%test_result: (int * int) list]
+    ~expect:[ (1, 2); (1, 3); (2, 3) ]
+    (all_pairs [ 1; 2; 3 ])
