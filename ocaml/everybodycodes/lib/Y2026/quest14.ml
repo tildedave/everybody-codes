@@ -1,5 +1,3 @@
-[@@@ocaml.warning "-27-26-31-32"]
-
 open Base
 open Util
 open Core
@@ -33,8 +31,6 @@ let%test_unit "part1" = [%test_eq: int] 67 (part1 example)
    of edge coords then we can organize by x/y and then build a MST.  *)
 module CharOption = struct
   type t = char option [@@deriving compare, sexp_of, equal]
-
-  let hash = Hashtbl.hash
 end
 
 module CharOption_Comparator = struct
@@ -44,8 +40,6 @@ end
 
 module Edge = struct
   type t = char option * char option * int [@@deriving compare, sexp_of, equal]
-
-  let hash = Hashtbl.hash
 end
 
 module Edge_Comparator = struct
