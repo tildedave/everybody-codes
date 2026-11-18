@@ -147,25 +147,22 @@ let%test_unit "neighbors" =
 let bfs root goal ~neighbors ~should_cutoff =
   let q = Queue.create () in
   let visited = Hash_set.create (module SearchState_Comparator) in
-  let dist = Hashtbl.create (module SearchState_Comparator) in
   let result = ref None in
   Hash_set.add visited root;
-  Hashtbl.set dist ~key:root ~data:0;
-  Queue.enqueue q root;
+  (* Hashtbl.set dist ~key:root ~data:0; *)
+  Queue.enqueue q (root, 0);
   while (not (Queue.is_empty q)) && Option.is_none !result do
-    let next = Queue.dequeue_exn q in
+    let next, curr_dist = Queue.dequeue_exn q in
     if not (should_cutoff next) then
-      let curr_dist = Hashtbl.find_exn dist next in
       (* Stdio.printf "looking at %s\n" (show_search_state next); *)
       (* ignore direction to make part2 better *)
       if equal_search_state next { goal with direction = next.direction } then
-        result := Some (Hashtbl.find_exn dist goal)
+        result := Some curr_dist
       else
         Sequence.iter (neighbors next) ~f:(fun neighbor_state ->
             if not (Hash_set.mem visited neighbor_state) then begin
               Hash_set.add visited neighbor_state;
-              Hashtbl.set dist ~key:neighbor_state ~data:(curr_dist + 1);
-              Queue.enqueue q neighbor_state
+              Queue.enqueue q (neighbor_state, curr_dist + 1)
             end)
     (* we are done *)
   done;
@@ -233,37 +230,16 @@ let%test_unit "part1 (given example)" =
    that.  we can "catch" sulfur looping back so I think this does matter
 *)
 
-(* let's just do part2 in a silly way *)
-(* without better edge selection for dijkstra it isn't fast enough *)
-let part2_search g =
-  let xmax, ymax = g.bounds in
-  let xmin, ymin = (0, 0) in
-  let bounds = ((xmin, ymin), (xmax - 1, ymax - 1)) in
-  let start_node =
-    {
-      coord = (xmin, (ymax - ymin) / 2);
-      sulfur = 0;
-      direction = (1, 0);
-      num_sulfurs = 0;
-    }
-  in
-  let sulfur_spots = find_sulfur g bounds in
-  let sulfur_map =
-    Map.of_alist_exn
-      (module IntPair_Comparator)
-      (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
-  in
-  let end_node =
-    {
-      coord = (xmax - 1, (ymax - ymin) / 2);
-      sulfur = 0;
-      direction = (1, 0);
-      num_sulfurs = 2026;
-    }
-  in
-  bfs start_node end_node
-    ~neighbors:(neighbors g bounds sulfur_map ~part1:false)
-    ~should_cutoff:(fun ss -> ss.num_sulfurs > 2026)
+let _print_subgrid g ((xmin, ymin), (xmax, ymax)) =
+  Stdio.printf "------- SUBGRID ------ %s %s\n"
+    (show_tuple (xmin, ymin))
+    (show_tuple (xmax, ymax));
+  for y = ymin to ymax do
+    for x = xmin to xmax do
+      Option.iter (grid_at_opt g (x, y)) ~f:(Stdio.printf "%c")
+    done;
+    Stdio.printf "\n"
+  done
 
 let in_corridor g (x, y) =
   equal_char (grid_at g (x, y + 1)) '#' && equal_char (grid_at g (x, y - 1)) '#'
@@ -283,89 +259,115 @@ let possible_starts g =
   let g = to_grid example in
   [%test_result: (int * int) list] ~expect:[]
     (Sequence.to_list (possible_starts (to_grid example))) *)
-
-let loop_end g (x, y) =
+let walk_loop g (x, y) dy =
   let xmax, _ = g.bounds in
-  let starting_x = x in
+  let starting_x, starting_y = (x, y) in
   let x, y = (ref (x + 1), ref y) in
   (* walk right, walk up until we can't, walk right until we can't, walk
        down until we can walk right *)
-  while not (equal_char (grid_at g (!x, !y + 1)) '#') do
-    y := !y + 1
+  while not (equal_char (grid_at g (!x, !y + dy)) '#') do
+    y := !y + dy
   done;
+  let topy = !y in
   while not (equal_char (grid_at g (!x + 1, !y)) '#') do
     x := !x + 1
   done;
   while equal_char (grid_at g (!x + 1, !y)) '#' do
-    y := !y - 1
+    y := !y - dy
   done;
   (* adjust for the end of the grid *)
   if equal_int starting_x !x then None
-  else if xmax - (!x + 1) <= 3 then Some (xmax - 1, !y)
-  else Some (!x + 1, !y)
+  else if xmax - (!x + 1) <= 3 then
+    Some ((starting_x, min topy starting_y), (xmax - 1, max topy starting_y))
+  else Some ((starting_x, min topy starting_y), (!x + 1, max topy starting_y))
+
+let upper_loop g (x, y) = walk_loop g (x, y) (-1)
+let lower_loop g (x, y) = walk_loop g (x, y) 1
+
+(* we're going to assume that upper/lower loop are all that's needed, e.g. no
+   walking upper, going to lower, etc.  could clearly be wrong *)
 
 let%test_unit "loop_end matches our parsed columns" =
   let g = to_grid example in
   let columns = parse_columns g in
-  [%test_result: (int * int) option list]
-    ~expect:
-      (List.map
+  [%test_result: ((int * int) * (int * int)) option list]
+    ~expect:[]
+      (* (List.map
          ~f:(fun ((_, ymin), (xmax, ymax)) -> Some (xmax, (ymax - ymin) / 2))
-         columns)
+         columns) *)
     (List.map
        ~f:(fun ((xmin, ymin), (_, ymax)) ->
-         loop_end g (xmin, (ymax - ymin) / 2))
+         upper_loop g (xmin, (ymax - ymin) / 2))
        columns)
 
 let add2 (x, y) (dx, dy) = (x + dx, y + dy)
 
-let loop_time g lstart =
-  (let open Option.Let_syntax in
-   let%map lend = loop_end g lstart in
-   let _, ymax = g.bounds in
-   (* both start and end are in the corridor so we must move them inwards *)
-   let bounds = ((fst lstart, 0), (fst lend, ymax - 1)) in
-   let sulfur_spots = find_sulfur g bounds in
-   Stdio.printf "bounds are %s, %s - %d sulfur available\n" (show_tuple lstart)
-     (show_tuple lend)
-     (Sequence.length sulfur_spots);
-   let sulfur_map =
-     Map.of_alist_exn
-       (module IntPair_Comparator)
-       (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
-   in
-   let start_node =
-     {
-       coord = add2 lstart (1, 0);
-       sulfur = 0;
-       direction = (1, 0);
-       num_sulfurs = 0;
-     }
-   in
-   let goal_sulfur =
-     List.fold ~init:0 ~f:set_bit (List.range 0 (Sequence.length sulfur_spots))
-   in
-   let end_node =
-     {
-       coord = add2 lstart (1, 0);
-       sulfur = goal_sulfur;
-       direction = (1, 0);
-       num_sulfurs = Map.length sulfur_map;
-     }
-   in
-   (* Stdio.printf "start %s ---> end %s\n"
+let search_bounds g lstart bounds =
+  let sulfur_spots = find_sulfur g bounds in
+  Stdio.printf "bounds are %s, %s - %d sulfur available\n"
+    (show_tuple (fst bounds))
+    (show_tuple (snd bounds))
+    (Sequence.length sulfur_spots);
+  _print_subgrid g bounds;
+  let sulfur_map =
+    Map.of_alist_exn
+      (module IntPair_Comparator)
+      (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
+  in
+  let start_node =
+    {
+      coord = add2 lstart (1, 0);
+      sulfur = 0;
+      direction = (1, 0);
+      num_sulfurs = 0;
+    }
+  in
+  let goal_sulfur =
+    List.fold ~init:0 ~f:set_bit (List.range 0 (Sequence.length sulfur_spots))
+  in
+  let end_node =
+    {
+      coord = add2 lstart (1, 0);
+      sulfur = goal_sulfur;
+      direction = (1, 0);
+      num_sulfurs = Map.length sulfur_map;
+    }
+  in
+  (* Stdio.printf "start %s ---> end %s\n"
        (show_search_state start_node)
        (show_search_state end_node); *)
-   bfs start_node end_node
-     ~neighbors:(neighbors g bounds sulfur_map ~part1:true)
-     ~should_cutoff:(fun _ -> false))
-  |> Option.join
+  Option.map
+    ~f:(fun n -> (n, Map.length sulfur_map))
+    (bfs start_node end_node
+       ~neighbors:(neighbors g bounds sulfur_map ~part1:true)
+       ~should_cutoff:(fun _ -> false))
 
+(* let loop_time g lstart =
+  let f = fun o -> o |> Option.map ~f:(search_bounds g lstart) |> Option.join in
+  [ upper_loop g lstart |> f; lower_loop g lstart |> f ] |> List.filter_opt *)
+
+type loop_result = {
+  seconds : int;
+  num_sulfur : int;
+  loop_start : int * int;
+  bounds : (int * int) * (int * int);
+}
+
+let loop_time g lstart =
+  let open Option.Let_syntax in
+  let%bind upper_bounds = upper_loop g lstart in
+  let%map time, num_sulfur = search_bounds g lstart upper_bounds in
+  { seconds = time; num_sulfur; loop_start = lstart; bounds = upper_bounds }
+
+(* both start and end are in the corridor so we must move them inwards *)
+(* OK this works, now we need to include the bounds, bleh *)
+(*
 let%test_unit "making loop_time work" =
   let g = to_grid example in
   let columns = parse_columns g in
-  [%test_result: int option list] ~expect:[]
-    (Sequence.to_list (Sequence.map ~f:(loop_time g) (possible_starts g)))
+  [%test_result: (int * int) list] ~expect:[]
+    (List.concat
+       (Sequence.to_list (Sequence.map ~f:(loop_time g) (possible_starts g)))) *)
 
 (* we start on this square, we find the end *)
 
@@ -374,9 +376,12 @@ let%test_unit "making loop_time work" =
 (* we basically just need to get to the point where we can BFS the remainder *)
 (* this approach works for the given example *)
 
+let part2_search g = 1
+
 let part2 l =
   let g = to_grid l in
-  Option.value_exn @@ part2_search g
+  1
+(* Option.value_exn @@ part2_search g *)
 
 (* let%test_unit "part2 (given example)" =
   [%test_result: int] ~expect:184 (part2 example) *)
