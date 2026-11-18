@@ -349,26 +349,71 @@ let search_bounds g lstart bounds =
 type loop_result = {
   seconds : int;
   num_sulfur : int;
-  loop_start : int * int;
+  start : int * int;
   bounds : (int * int) * (int * int);
 }
+[@@deriving sexp_of]
+
+let compare_loop_result result1 result2 =
+  match (result1.num_sulfur, result2.num_sulfur) with
+  | 0, 0 -> compare_tuple result1.start result2.start
+  | 0, _ -> 1
+  | _, 0 -> -1
+  (* compare their ratios *)
+  | _, _ -> (
+      match
+        compare_float
+          (result1.num_sulfur // result1.seconds)
+          (result2.num_sulfur // result2.seconds)
+      with
+      | 0 -> compare_tuple result1.start result2.start
+      | r -> r)
+
+let search_result g lstart bounds =
+  search_bounds g lstart bounds
+  |> Option.map ~f:(fun (time, num_sulfur) ->
+      { seconds = time; num_sulfur; start = lstart; bounds })
 
 let loop_time g lstart =
   let open Option.Let_syntax in
-  let%bind upper_bounds = upper_loop g lstart in
-  let%map time, num_sulfur = search_bounds g lstart upper_bounds in
-  { seconds = time; num_sulfur; loop_start = lstart; bounds = upper_bounds }
+  Sequence.of_list
+    [
+      (let%bind upper_bounds = upper_loop g lstart in
+       search_result g lstart upper_bounds);
+      (let%bind lower_bounds = upper_loop g lstart in
+       search_result g lstart lower_bounds);
+    ]
+  |> Sequence.filter ~f:(Option.exists ~f:(fun r -> r.num_sulfur > 0))
 
 (* both start and end are in the corridor so we must move them inwards *)
 (* OK this works, now we need to include the bounds, bleh *)
-(*
-let%test_unit "making loop_time work" =
+
+(* let%test_unit "making loop_time work" =
   let g = to_grid example in
   let columns = parse_columns g in
-  [%test_result: (int * int) list] ~expect:[]
+  [%test_result: loop_result list] ~expect:[]
     (List.concat
        (Sequence.to_list (Sequence.map ~f:(loop_time g) (possible_starts g)))) *)
 
+let best_loop g =
+  possible_starts g
+  |> Sequence.concat_map ~f:(loop_time g)
+  |> Sequence.filter_opt
+  |> Sequence.max_elt ~compare:compare_loop_result
+
+let%test_unit "best_loop" =
+  let g = to_grid example in
+  let columns = parse_columns g in
+  [%test_result: loop_result option]
+    ~expect:
+      (Some
+         {
+           seconds = 8;
+           num_sulfur = 3;
+           start = (5, 7);
+           bounds = ((5, 5), (7, 7));
+         })
+    (best_loop g)
 (* we start on this square, we find the end *)
 
 (* we'll make the assumption that any optimal route "clears" the sulfur
