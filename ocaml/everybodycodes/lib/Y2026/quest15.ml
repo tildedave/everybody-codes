@@ -271,17 +271,6 @@ let _print_subgrid g ((xmin, ymin), (xmax, ymax)) =
 let in_corridor g (x, y) =
   equal_char (grid_at g (x, y + 1)) '#' && equal_char (grid_at g (x, y - 1)) '#'
 
-let possible_starts g =
-  let xmax, ymax = g.bounds in
-  let y = ymax / 2 in
-  let indices =
-    Sequence.map ~f:(fun x -> (x, y)) (Sequence.range 0 (xmax - 1))
-  in
-  (* can start on any square that doesn't have #s above it
-     this is incorrect (e.g. might be at the end of a loop), but those examples
-     will quickly get winnowed out by the bounds check in the neighbors *)
-  Sequence.filter ~f:(fun (x, y) -> not (in_corridor g (x, y))) indices
-
 type loop_result = {
   seconds : int;
   num_sulfur : int;
@@ -294,33 +283,35 @@ let walk_loop g (x, y) dy =
   let starting_x, starting_y = (x, y) in
   let num_sulfur = ref 0 in
   let steps = ref 0 in
-  let x, y = (ref x, ref y) in
-  (* walk right, walk up until we can't, walk right until we can't, walk
-       down until we can walk right *)
-  while not (equal_char (grid_at g (!x, !y + dy)) '#') do
-    y := !y + dy;
-    steps := !steps + 1;
-    if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
-  done;
-  let topy = !y in
-  while not (equal_char (grid_at g (!x + 1, !y)) '#') do
-    x := !x + 1;
-    steps := !steps + 1;
-    if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
-  done;
-  while equal_char (grid_at g (!x + 1, !y)) '#' do
-    y := !y - dy;
-    steps := !steps + 1;
-    if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
-  done;
-  if equal_int starting_x !x then None
+  if equal_char (grid_at g (x, y + dy)) '#' then None
   else
-    Some
-      {
-        seconds = !steps + (!x - starting_x);
-        start = (starting_x, starting_y);
-        num_sulfur = !num_sulfur;
-      }
+    let x, y = (ref x, ref y) in
+    (* walk right, walk up until we can't, walk right until we can't, walk
+       down until we can walk right *)
+    while not (equal_char (grid_at g (!x, !y + dy)) '#') do
+      y := !y + dy;
+      steps := !steps + 1;
+      if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
+    done;
+    let topy = !y in
+    while not (equal_char (grid_at g (!x + 1, !y)) '#') do
+      x := !x + 1;
+      steps := !steps + 1;
+      if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
+    done;
+    while equal_char (grid_at g (!x + 1, !y)) '#' do
+      y := !y - dy;
+      steps := !steps + 1;
+      if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
+    done;
+    if equal_int starting_x !x then None
+    else
+      Some
+        {
+          seconds = !steps + (!x - starting_x);
+          start = (starting_x, starting_y);
+          num_sulfur = !num_sulfur;
+        }
 
 let upper_loop g (x, y) = walk_loop g (x, y) (-1)
 let lower_loop g (x, y) = walk_loop g (x, y) 1
@@ -356,8 +347,8 @@ let add2 (x, y) (dx, dy) = (x + dx, y + dy)
 let compare_loop_result result1 result2 =
   match (result1.num_sulfur, result2.num_sulfur) with
   | 0, 0 -> compare_tuple result1.start result2.start
-  | 0, _ -> 1
-  | _, 0 -> -1
+  | 0, _ -> -1
+  | _, 0 -> 1
   (* compare their ratios *)
   | _, _ -> (
       match
@@ -369,7 +360,8 @@ let compare_loop_result result1 result2 =
       | r -> r)
 
 let best_loop g =
-  possible_starts g (* technically could do this without the corridor *)
+  let xmax, ymax = g.bounds in
+  Sequence.map ~f:(fun x -> (x, ymax / 2)) (Sequence.range 0 (xmax - 2))
   |> Sequence.concat_map ~f:(fun coord ->
       Sequence.of_list [ upper_loop g coord; lower_loop g coord ])
   |> Sequence.filter_opt
@@ -437,7 +429,7 @@ let part3_search ?(exact = false) g goal_num =
   let lr = Option.value_exn (best_loop g) in
   let xmax, ymax = g.bounds in
   (* so actually the fudge value needs to just be > the sulfur between the start *)
-  let fudge = 150 in
+  let fudge = lr.num_sulfur * 2 in
   let num_loop_executions = (goal_num - fudge) / lr.num_sulfur in
   (* we actually start with a time = time to get to lr.start + time to execute loop a billion times, *)
   let bounds = ((0, 0), (xmax - 1, ymax - 1)) in
