@@ -155,20 +155,20 @@ module SearchComparator = struct
   include Comparator.Make (Search)
 end
 
-let dijkstra root ~is_goal ~neighbors ~should_cutoff =
-  let q = Queue.create () in
+let dijkstra ?(print_trace = false) root ~is_goal ~neighbors ~should_cutoff =
   let dist = Hashtbl.create (module SearchState_Comparator) in
+  let prev = Hashtbl.create (module SearchState_Comparator) in
   let result = ref None in
-  (* Hashtbl.set dist ~key:root ~data:0; *)
+  let final = ref None in
+  Hashtbl.set dist ~key:root ~data:0;
   let frontier = ref (Set.singleton (module SearchComparator) (0, root)) in
   while (not (Set.is_empty !frontier)) && Option.is_none !result do
     let ((curr_dist, next) as old) = Set.min_elt_exn !frontier in
     frontier := Set.remove !frontier old;
     if not (should_cutoff old) then
-      if
-        (* ignore direction to make part2 better *)
-        is_goal next
-      then result := Some curr_dist
+      if is_goal (curr_dist, next) then (
+        result := Some curr_dist;
+        final := Some next)
       else
         Sequence.iter (neighbors next) ~f:(fun neighbor_state ->
             match Hashtbl.find dist neighbor_state with
@@ -180,10 +180,16 @@ let dijkstra root ~is_goal ~neighbors ~should_cutoff =
                     frontier := Set.remove !frontier (d', neighbor_state))
                   old;
                 frontier := Set.add !frontier (curr_dist + 1, neighbor_state);
+                Hashtbl.set prev ~key:neighbor_state ~data:next;
                 Hashtbl.set dist ~key:neighbor_state ~data:(curr_dist + 1))
     (* we are done *)
   done;
-  !result
+  if print_trace then
+    while Option.is_some !final do
+      Stdio.printf "%s\n" (show_search_state @@ Option.value_exn !final);
+      final := Hashtbl.find prev (Option.value_exn !final)
+    done;
+  (!result, !final)
 
 let search_quadrant g bounds =
   let (xmin, ymin), (xmax, ymax) = bounds in
@@ -216,10 +222,11 @@ let search_quadrant g bounds =
     (show_search_state start_node)
     (show_search_state end_node); *)
   dijkstra start_node
-    ~is_goal:(fun next ->
+    ~is_goal:(fun (_, next) ->
       equal_search_state next { end_node with direction = next.direction })
     ~neighbors:(neighbors ~part1:true g bounds sulfur_map)
     ~should_cutoff:(fun _ -> false)
+  |> fst
 
 let%test_unit "search_quadrants" =
   [%test_result: int option list]
@@ -358,13 +365,13 @@ let search_bounds g lstart bounds =
   (* Stdio.printf "start %s ---> end %s\n"
        (show_search_state start_node)
        (show_search_state end_node); *)
-  Option.map
-    ~f:(fun n -> (n, i))
-    (dijkstra start_node
-       ~neighbors:(neighbors g bounds sulfur_map ~part1:true)
-       ~is_goal:(fun next ->
-         equal_search_state next { end_node with direction = next.direction })
-       ~should_cutoff:(fun _ -> false))
+  dijkstra start_node
+    ~neighbors:(neighbors g bounds sulfur_map ~part1:true)
+    ~is_goal:(fun (_, next) ->
+      equal_search_state next { end_node with direction = next.direction })
+    ~should_cutoff:(fun _ -> false)
+  |> fst
+  |> Option.map ~f:(fun n -> (n, i))
 
 (* let loop_time g lstart =
   let f = fun o -> o |> Option.map ~f:(search_bounds g lstart) |> Option.join in
@@ -429,10 +436,12 @@ let loop_time g lstart =
 let best_loop g =
   possible_starts g
   |> Sequence.concat_map ~f:(loop_time g)
-  |> Sequence.map ~f:(fun r ->
+  |> Sequence.to_list
+  |> List.sort ~compare:compare_loop_result
+  |> List.map ~f:(fun r ->
       Stdio.printf "loop result --> %s\n" (show_loop_result r);
       r)
-  |> Sequence.max_elt ~compare:compare_loop_result
+  |> List.max_elt ~compare:compare_loop_result
 
 let%test_unit "best_loop" =
   let g = to_grid example in
@@ -477,31 +486,70 @@ let part2_search (g : grid) =
   (* Stdio.printf "start %s ---> end %s\n"
         (show_search_state start_node)
         (show_search_state end_node); *)
-  dijkstra start_node
-    ~is_goal:(fun next ->
-      equal_search_state next
-        { end_node with direction = next.direction; sulfur = next.sulfur })
-    ~neighbors:(neighbors g bounds sulfur_map)
-    ~should_cutoff:(fun (d, ss) ->
-      if ss.num_sulfurs > 2026 then true
-      else
-        match Hashtbl.find best_for_coord ss with
-        | Some d' when d' < d -> true
-        | _ ->
-            Hashtbl.set best_for_coord ~key:ss ~data:d;
-            false)
+  fst
+  @@ dijkstra start_node
+       ~is_goal:(fun (_, next) ->
+         equal_search_state next
+           { end_node with direction = next.direction; sulfur = next.sulfur })
+       ~neighbors:(neighbors g bounds sulfur_map)
+       ~should_cutoff:(fun (d, ss) ->
+         if ss.num_sulfurs > 2026 then true
+         else
+           match Hashtbl.find best_for_coord ss with
+           | Some d' when d' < d -> true
+           | _ ->
+               Hashtbl.set best_for_coord ~key:ss ~data:d;
+               false)
 
-let part3_search g =
+let part3_search g goal_num =
   let lr = Option.value_exn (best_loop g) in
+  let (startx, _), (_, _) = lr.bounds in
   let xmax, ymax = g.bounds in
-  let num_loop_executions = (2026 / lr.num_sulfur) - 6 in
+  (* so actually the fudge value needs to just be > the sulfur between the start *)
+  let fudge = 500 in
+  let num_loop_executions = ((goal_num - fudge) / lr.num_sulfur) - 4 in
   (* we actually start with a time = time to get to lr.start + time to execute loop a billion times, *)
+  let actual_start_node =
+    { coord = (0, ymax / 2); sulfur = 0; direction = (1, 0); num_sulfurs = 0 }
+  in
+  let begin_loop_node =
+    { coord = lr.start; sulfur = 0; direction = (1, 0); num_sulfurs = fudge }
+  in
+  (* technically we can push the bounds forward, OK, let's do that *)
+  let bounds = ((0, 0), (xmax - 1, ymax - 1)) in
+  let sulfur_spots = find_sulfur g bounds in
+  let sulfur_map =
+    Map.of_alist_exn
+      (module IntPair_Comparator)
+      (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
+  in
+  let open Option.Let_syntax in
+  let get_to_start_opt, start_state_opt =
+    dijkstra actual_start_node
+      ~is_goal:(fun (_, next) ->
+        if
+          next.num_sulfurs >= fudge
+          && equal_search_state next
+               {
+                 begin_loop_node with
+                 direction = next.direction;
+                 sulfur = next.sulfur;
+                 num_sulfurs = next.num_sulfurs;
+               }
+        then true
+        else false)
+      ~neighbors:(neighbors g bounds sulfur_map)
+      ~should_cutoff:(fun _ -> false)
+  in
+  let%bind start_state = start_state_opt in
+  let%bind get_to_start = get_to_start_opt in
   let start_node =
     {
       coord = lr.start;
       sulfur = 0;
       direction = (1, 0);
-      num_sulfurs = lr.num_sulfur * num_loop_executions;
+      num_sulfurs =
+        start_state.num_sulfurs + (lr.num_sulfur * num_loop_executions);
     }
   in
   let end_node =
@@ -509,36 +557,35 @@ let part3_search g =
       coord = (xmax - 1, ymax / 2);
       sulfur = 0;
       direction = (1, 0);
-      num_sulfurs = 2026;
+      num_sulfurs = goal_num;
     }
   in
+  Stdio.printf "actual start %s\n" (show_search_state actual_start_node);
+  Stdio.printf "get to start %d\n" get_to_start;
   Stdio.printf "start from %s\n" (show_search_state start_node);
   Stdio.printf "goal is %s\n" (show_search_state end_node);
   Stdio.printf "best is %s\n" (show_loop_result lr);
-  (* technically we can push the bounds forward, OK, let's do that *)
-  let (startx, _), (_, _) = lr.bounds in
-  let bounds = ((startx, 0), (xmax - 1, ymax - 1)) in
-  let sulfur_spots = find_sulfur g bounds in
-  let sulfur_map =
-    Map.of_alist_exn
-      (module IntPair_Comparator)
-      (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
-  in
   dijkstra start_node
-    ~is_goal:(fun next ->
-      equal_search_state next
-        { end_node with direction = next.direction; sulfur = next.sulfur })
+    ~is_goal:(fun (_, next) ->
+      next.num_sulfurs >= goal_num && equal_tuple end_node.coord next.coord)
     ~neighbors:(neighbors g bounds sulfur_map)
-    ~should_cutoff:(fun _ -> false)
+    ~should_cutoff:(fun (_, next) -> next.num_sulfurs > goal_num)
+  |> fst
   |> Option.map ~f:(fun end_time ->
-      startx + (num_loop_executions * lr.seconds) + end_time)
+      get_to_start + (num_loop_executions * lr.seconds) + end_time)
 
 let part2 l =
   let g = to_grid l in
-  Option.value_exn @@ part3_search g
+  Option.value_exn @@ part3_search g 2026
 
 let%test_unit "part2 (given example)" =
   [%test_result: int] ~expect:5448 (part2 example)
 
-let part3 _ = 1
+let part3 l =
+  let g = to_grid l in
+  Option.value_exn @@ part3_search g 202620262026
+
+let%test_unit "part3 (given example)" =
+  [%test_result: int] ~expect:540320698784 (part3 example)
+
 (*5 + (674 * 8) + 6 = 5403*)
