@@ -1,5 +1,3 @@
-[@@@ocaml.warning "-27-26-31-32"]
-
 open Base
 open Util
 
@@ -81,12 +79,10 @@ type search_state = {
   direction : int * int;
   num_sulfurs : int;
 }
-[@@deriving compare, show, sexp_of, equal]
+[@@deriving compare, show, sexp_of, equal, hash]
 
 module SearchState = struct
-  type t = search_state [@@deriving compare, show, sexp_of]
-
-  let hash = Hashtbl.hash
+  type t = search_state [@@deriving compare, equal, show, sexp_of, hash]
 end
 
 module SearchState_Comparator = struct
@@ -146,8 +142,6 @@ let%test_unit "neighbors" =
 
 module Search = struct
   type t = int * search_state [@@deriving compare, sexp_of, show]
-
-  let hash = Hashtbl.hash
 end
 
 module SearchComparator = struct
@@ -268,9 +262,6 @@ let _print_subgrid g ((xmin, ymin), (xmax, ymax)) =
     Stdio.printf "\n"
   done
 
-let in_corridor g (x, y) =
-  equal_char (grid_at g (x, y + 1)) '#' && equal_char (grid_at g (x, y - 1)) '#'
-
 type loop_result = {
   seconds : int;
   num_sulfur : int;
@@ -280,7 +271,6 @@ type loop_result = {
 [@@deriving sexp_of, show]
 
 let walk_loop g (x, y) dy =
-  let xmax, _ = g.bounds in
   let starting_x, starting_y = (x, y) in
   let num_sulfur = ref 0 in
   let steps = ref 0 in
@@ -294,7 +284,6 @@ let walk_loop g (x, y) dy =
       steps := !steps + 1;
       if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
     done;
-    let topy = !y in
     while not (equal_char (grid_at g (!x + 1, !y)) '#') do
       x := !x + 1;
       steps := !steps + 1;
@@ -332,34 +321,6 @@ let full_loop g (x, y) =
     seconds = upper.seconds + lower.seconds - (2 * upper.x_distance);
   }
 
-(* let full_loop g (x, y) =
-  let open Option.Let_syntax in
-  let%bind (starting_x, upper_y), (end_x, up_y) = walk_loop g (x, y) (-1) in
-  let%map (_, lower_y), (end_x, down_y) = walk_loop g (x, y) 1 in
-  let r = ((starting_x, upper_y), (end_x, down_y)) in
-  Stdio.printf "full loop is %s %s upper_y=%d lower_y=%d down_y=%d up_y=%d\n"
-    (show_tuple (fst r))
-    (show_tuple (snd r))
-    upper_y lower_y down_y up_y;
-  r *)
-(* we're going to assume that upper/lower loop are all that's needed, e.g. no
-   walking upper, going to lower, etc.  could clearly be wrong *)
-
-(* let%test_unit "loop_end matches our parsed columns" =
-  let g = to_grid example in
-  let columns = parse_columns g in
-  [%test_result: ((int * int) * (int * int)) option list]
-    ~expect:[]
-      (* (List.map
-         ~f:(fun ((_, ymin), (xmax, ymax)) -> Some (xmax, (ymax - ymin) / 2))
-         columns) *)
-    (List.map
-       ~f:(fun ((xmin, ymin), (_, ymax)) ->
-         upper_loop g (xmin, (ymax - ymin) / 2))
-       columns) *)
-
-let add2 (x, y) (dx, dy) = (x + dx, y + dy)
-
 let compare_loop_result result1 result2 =
   match (result1.num_sulfur, result2.num_sulfur) with
   | 0, 0 -> compare_tuple result1.start result2.start
@@ -385,63 +346,14 @@ let best_loop g =
   |> Sequence.filter ~f:(fun lr -> lr.num_sulfur > 0)
   |> Sequence.to_list
   |> List.sort ~compare:compare_loop_result
-  |> List.map ~f:(fun r ->
-      Stdio.printf "loop result --> %s %.2f\n" (show_loop_result r)
-        (r.num_sulfur // r.seconds);
-      r)
   |> List.max_elt ~compare:compare_loop_result
 
 let%test_unit "best_loop" =
   let g = to_grid example in
-  let columns = parse_columns g in
   [%test_result: loop_result option]
     ~expect:
       (Some { seconds = 8; num_sulfur = 3; start = (5, 7); x_distance = 3 })
     (best_loop g)
-
-let part2_search (g : grid) =
-  let xmax, ymax = g.bounds in
-  let bounds = ((0, 0), (xmax - 1, ymax - 1)) in
-  let start_node =
-    {
-      coord = (0, (ymax - 1) / 2);
-      sulfur = 0;
-      direction = (1, 0);
-      num_sulfurs = 0;
-    }
-  in
-  let sulfur_spots = find_sulfur g bounds in
-  let sulfur_map =
-    Map.of_alist_exn
-      (module IntPair_Comparator)
-      (Sequence.to_list (Sequence.mapi ~f:(fun i c -> (c, i)) sulfur_spots))
-  in
-  let end_node =
-    {
-      coord = (xmax, (ymax - 0) / 2);
-      sulfur = 0;
-      direction = (1, 0);
-      num_sulfurs = 2026;
-    }
-  in
-  let best_for_coord = Hashtbl.create (module SearchState_Comparator) in
-  (* Stdio.printf "start %s ---> end %s\n"
-        (show_search_state start_node)
-        (show_search_state end_node); *)
-  fst
-  @@ dijkstra start_node
-       ~is_goal:(fun (_, next) ->
-         equal_search_state next
-           { end_node with direction = next.direction; sulfur = next.sulfur })
-       ~neighbors:(neighbors g bounds sulfur_map)
-       ~should_cutoff:(fun (d, ss) ->
-         if ss.num_sulfurs > 2026 then true
-         else
-           match Hashtbl.find best_for_coord ss with
-           | Some d' when d' < d -> true
-           | _ ->
-               Hashtbl.set best_for_coord ~key:ss ~data:d;
-               false)
 
 let part3_search ?(exact = false) g goal_num =
   let lr = Option.value_exn (best_loop g) in
@@ -469,10 +381,6 @@ let part3_search ?(exact = false) g goal_num =
       num_sulfurs = target;
     }
   in
-  Stdio.printf "start from %s\n" (show_search_state start_node);
-  Stdio.printf "goal is %s\n" (show_search_state end_node);
-  Stdio.printf "best is %s\n" (show_loop_result lr);
-  Out_channel.flush Stdio.stdout;
   dijkstra start_node
     ~is_goal:(fun (_, next) ->
       (if exact then equal_int next.num_sulfurs target
@@ -483,7 +391,6 @@ let part3_search ?(exact = false) g goal_num =
       if exact then next.num_sulfurs > target else false)
   |> fst
   |> Option.map ~f:(fun end_time ->
-      Stdio.printf "time %d\n" end_time;
       end_time + (num_loop_executions * lr.seconds))
 
 let part2 l =
