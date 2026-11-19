@@ -275,6 +275,7 @@ type loop_result = {
   seconds : int;
   num_sulfur : int;
   start : int * int; (* bounds : (int * int) * (int * int); *)
+  x_distance : int;
 }
 [@@deriving sexp_of, show]
 
@@ -299,22 +300,37 @@ let walk_loop g (x, y) dy =
       steps := !steps + 1;
       if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
     done;
-    while equal_char (grid_at g (!x + 1, !y)) '#' do
+    while
+      (not (equal_char (grid_at g (!x, !y - dy)) '#'))
+      && not (equal_int starting_y !y)
+    do
       y := !y - dy;
       steps := !steps + 1;
       if equal_char (grid_at g (!x, !y)) '@' then num_sulfur := !num_sulfur + 1
     done;
-    if equal_int starting_x !x then None
+    if equal_int starting_x !x || not (equal_int starting_y !y) then None
     else
       Some
         {
           seconds = !steps + (!x - starting_x);
           start = (starting_x, starting_y);
+          x_distance = !x - starting_x;
           num_sulfur = !num_sulfur;
         }
 
 let upper_loop g (x, y) = walk_loop g (x, y) (-1)
 let lower_loop g (x, y) = walk_loop g (x, y) 1
+
+let full_loop g (x, y) =
+  let open Option.Let_syntax in
+  let%bind upper = upper_loop g (x, y) in
+  let%map lower = lower_loop g (x, y) in
+  {
+    start = upper.start;
+    num_sulfur = upper.num_sulfur + lower.num_sulfur;
+    x_distance = upper.x_distance;
+    seconds = upper.seconds + lower.seconds - (2 * upper.x_distance);
+  }
 
 (* let full_loop g (x, y) =
   let open Option.Let_syntax in
@@ -363,7 +379,8 @@ let best_loop g =
   let xmax, ymax = g.bounds in
   Sequence.map ~f:(fun x -> (x, ymax / 2)) (Sequence.range 0 (xmax - 2))
   |> Sequence.concat_map ~f:(fun coord ->
-      Sequence.of_list [ upper_loop g coord; lower_loop g coord ])
+      Sequence.of_list
+        [ upper_loop g coord; lower_loop g coord; full_loop g coord ])
   |> Sequence.filter_opt
   |> Sequence.filter ~f:(fun lr -> lr.num_sulfur > 0)
   |> Sequence.to_list
@@ -378,7 +395,8 @@ let%test_unit "best_loop" =
   let g = to_grid example in
   let columns = parse_columns g in
   [%test_result: loop_result option]
-    ~expect:(Some { seconds = 8; num_sulfur = 3; start = (5, 7) })
+    ~expect:
+      (Some { seconds = 8; num_sulfur = 3; start = (5, 7); x_distance = 3 })
     (best_loop g)
 
 let part2_search (g : grid) =
