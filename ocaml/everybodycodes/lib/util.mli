@@ -53,7 +53,9 @@ type tuple = int * int
 val equal_tuple: tuple -> tuple -> bool
 val compare_tuple: tuple -> tuple -> int
 val sexp_of_tuple: tuple -> Base.Sexp.t
+val hash_tuple : tuple -> int
 val pp_tuple: Format.formatter -> tuple -> unit
 val show_tuple: tuple -> string
 val tuple_range: tuple -> tuple -> tuple list
 val isqrt : int -> int
+val hash_fold_tuple : Ppx_hash_lib.Std.Hash.state -> tuple -> Ppx_hash_lib.Std.Hash.state

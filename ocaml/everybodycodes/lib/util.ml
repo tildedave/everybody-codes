@@ -152,7 +152,7 @@ let grid_find_all grid ~f =
 
 let char_to_int ch = Char.to_int ch - 48
 
-type tuple = int * int [@@deriving eq, compare, show, sexp_of]
+type tuple = int * int [@@deriving eq, compare, show, sexp_of, hash]
 
 let _ = sexp_of_tuple
 let _ = pp_tuple
