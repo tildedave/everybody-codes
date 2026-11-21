@@ -18,6 +18,7 @@ module IntPair : sig
   val compare : t -> t -> int
   val sexp_of_t : t -> Base.Sexp.t
   val hash : 'a -> int
+  val hash_fold_t : Ppx_hash_lib.Std.Hash.state -> t -> Ppx_hash_lib.Std.Hash.state
 end
 module IntPair_Comparator : sig
   type t = int * int
@@ -56,3 +57,13 @@ val pp_tuple: Format.formatter -> tuple -> unit
 val show_tuple: tuple -> string
 val tuple_range: tuple -> tuple -> tuple list
 val isqrt : int -> int
+
+module type State = sig
+  type t [@@deriving compare, sexp_of, hash]
+end
+
+val dijkstra : (module State with type t = 'a) ->
+  'a ->
+  is_goal:(int * 'a -> bool) ->
+  neighbors:('a -> 'a Base.Sequence.t) ->
+  should_cutoff:(int * 'a -> bool) -> int option * 'a option

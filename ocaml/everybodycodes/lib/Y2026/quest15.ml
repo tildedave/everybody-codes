@@ -149,42 +149,6 @@ module SearchComparator = struct
   include Comparator.Make (Search)
 end
 
-let dijkstra ?(print_trace = false) root ~is_goal ~neighbors ~should_cutoff =
-  let dist = Hashtbl.create (module SearchState_Comparator) in
-  let prev = Hashtbl.create (module SearchState_Comparator) in
-  let result = ref None in
-  let final = ref None in
-  Hashtbl.set dist ~key:root ~data:0;
-  let frontier = ref (Set.singleton (module SearchComparator) (0, root)) in
-  while (not (Set.is_empty !frontier)) && Option.is_none !result do
-    let ((curr_dist, next) as old) = Set.min_elt_exn !frontier in
-    frontier := Set.remove !frontier old;
-    if not (should_cutoff old) then
-      if is_goal (curr_dist, next) then (
-        result := Some curr_dist;
-        final := Some next)
-      else
-        Sequence.iter (neighbors next) ~f:(fun neighbor_state ->
-            match Hashtbl.find dist neighbor_state with
-            | Some d' when d' <= curr_dist + 1 -> ()
-            | old ->
-                Option.iter
-                  ~f:(fun d' ->
-                    assert (Set.mem !frontier (d', neighbor_state));
-                    frontier := Set.remove !frontier (d', neighbor_state))
-                  old;
-                frontier := Set.add !frontier (curr_dist + 1, neighbor_state);
-                Hashtbl.set prev ~key:neighbor_state ~data:next;
-                Hashtbl.set dist ~key:neighbor_state ~data:(curr_dist + 1))
-    (* we are done *)
-  done;
-  if print_trace then
-    while Option.is_some !final do
-      Stdio.printf "%s\n" (show_search_state @@ Option.value_exn !final);
-      final := Hashtbl.find prev (Option.value_exn !final)
-    done;
-  (!result, !final)
-
 let search_quadrant g bounds =
   let (xmin, ymin), (xmax, ymax) = bounds in
   let start_node =
@@ -215,7 +179,9 @@ let search_quadrant g bounds =
   (* Stdio.printf "start %s ---> end %s\n"
     (show_search_state start_node)
     (show_search_state end_node); *)
-  dijkstra start_node
+  dijkstra
+    (module SearchState)
+    start_node
     ~is_goal:(fun (_, next) ->
       equal_search_state next { end_node with direction = next.direction })
     ~neighbors:(neighbors ~part1:true g bounds sulfur_map)
@@ -381,7 +347,9 @@ let part3_search ?(exact = false) g goal_num =
       num_sulfurs = target;
     }
   in
-  dijkstra start_node
+  dijkstra
+    (module SearchState)
+    start_node
     ~is_goal:(fun (_, next) ->
       (if exact then equal_int next.num_sulfurs target
        else next.num_sulfurs >= target)
