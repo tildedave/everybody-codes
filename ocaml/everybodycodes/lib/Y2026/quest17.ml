@@ -87,15 +87,16 @@ let follow_turn g (coord, orientation) (next, next_delta, turn_delta) =
   let forward = add2 coord next_delta in
   match grid_at_opt g forward with
   | None | Some '.' ->
-      Stdio.printf
+      (* Stdio.printf
         "can't move forward to %s, stay in the same coord and swap orientation \
          to %s\n"
         (show_tuple forward)
-        (show_wall_orientation next);
-      (coord, next) (* can't move forward, stay in same coord *)
+        (show_wall_orientation next); *)
+      (coord, next)
+      (* can't move forward, stay in same coord *)
   | Some '#' -> (
       (* can move forward, might bend *)
-      Stdio.printf "can move forward, might bend\n";
+      (* Stdio.printf "can move forward, might bend\n"; *)
       match grid_at_opt g (add2 coord turn_delta) with
       | None | Some '.' ->
           (add2 coord next_delta, orientation)
@@ -208,7 +209,10 @@ let p3_search l =
       dijkstra
         (module Position)
         start
-        ~is_goal:(fun (_, (coord, _)) -> equal_tuple (xmax - 1, ymax - 1) coord)
+        ~is_goal:(fun (_, (coord, orientation)) ->
+          equal_tuple (xmax - 1, ymax - 1) coord
+          && (equal_wall_orientation orientation Bottom
+             || equal_wall_orientation orientation Right))
         ~neighbors:(fun coord ->
           let n = neighbors g coord in
           if Position.equal left start && Position.equal coord left then
@@ -220,12 +224,7 @@ let p3_search l =
       |> fst |> Option.value_exn |> ( + ) 1)
     [ left; top ]
 
-let part3 l =
-  p3_search l
-  |> (fun l ->
-  Stdio.printf "%s\n" (String.concat ~sep:"," (List.map ~f:Int.to_string l));
-  l)
-  |> List.min_elt ~compare |> Option.value_exn
+let part3 l = p3_search l |> List.min_elt ~compare |> Option.value_exn
 
 let%test_unit "p3_search" =
   [%test_result: int list] ~expect:[ 31; 63 ] (p3_search example)
