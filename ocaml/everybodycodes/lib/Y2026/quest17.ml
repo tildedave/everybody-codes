@@ -220,7 +220,12 @@ let p3_search l =
       |> fst |> Option.value_exn |> ( + ) 1)
     [ left; top ]
 
-let part3 l = p3_search l |> List.min_elt ~compare |> Option.value_exn
+let part3 l =
+  p3_search l
+  |> (fun l ->
+  Stdio.printf "%s\n" (String.concat ~sep:"," (List.map ~f:Int.to_string l));
+  l)
+  |> List.min_elt ~compare |> Option.value_exn
 
 let%test_unit "p3_search" =
   [%test_result: int list] ~expect:[ 31; 63 ] (p3_search example)
