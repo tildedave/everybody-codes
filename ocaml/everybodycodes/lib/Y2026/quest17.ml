@@ -1,7 +1,6 @@
 open Base
 open Util
-
-(* copy/paste quest15's dijkstra for now*)
+open Search
 
 let part1 l =
   let g = to_grid l in
@@ -29,5 +28,10 @@ let example =
   ]
 
 let%test_unit "part1" = [%test_result: int] ~expect:21 (part1 example)
+
+let part2 l =
+  let g = to_grid l in
+
+
 let part2 _ = 1
 let part3 _ = 1

@@ -1,5 +1,6 @@
 open Base
 open Util
+open Search
 
 let example =
   [
