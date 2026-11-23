@@ -150,6 +150,9 @@ let grid_all_coords grid =
 let grid_find_all grid ~f =
   List.filter ~f:(fun c -> f (grid_at grid c)) (grid_all_coords grid)
 
+let grid_to_alist grid =
+  List.map ~f:(fun coord -> (coord, grid_at grid coord)) (grid_all_coords grid)
+
 let char_to_int ch = Char.to_int ch - 48
 
 type tuple = int * int [@@deriving eq, compare, show, sexp_of, hash]
@@ -193,3 +196,23 @@ let%test_unit "all_pairs" =
   [%test_result: (int * int) list]
     ~expect:[ (1, 2); (1, 3); (2, 3) ]
     (all_pairs [ 1; 2; 3 ])
+
+let rec permutations = function
+  | [] -> [ [] ]
+  | l ->
+      List.concat_mapi l ~f:(fun i x ->
+          let rest = List.filteri l ~f:(fun j _ -> j <> i) in
+          List.map (permutations rest) ~f:(fun p -> x :: p))
+
+let%test_unit "permutaions" =
+  [%test_result: int list list]
+    ~expect:
+      [
+        [ 1; 2; 3 ];
+        [ 1; 3; 2 ];
+        [ 2; 1; 3 ];
+        [ 2; 3; 1 ];
+        [ 3; 1; 2 ];
+        [ 3; 2; 1 ];
+      ]
+    (permutations [ 1; 2; 3 ])

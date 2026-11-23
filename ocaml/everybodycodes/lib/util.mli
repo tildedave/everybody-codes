@@ -45,7 +45,9 @@ val grid_all_neighbors: grid -> int * int -> (int * int) list
 val grid_all_coords : grid -> (int * int) list
 val grid_find : grid -> f:(char -> bool) -> (int * int) option
 val grid_find_all : grid -> f:(char -> bool) -> (int * int) list
+val grid_to_alist : grid -> ((int * int) * char) list
 val all_pairs : 'a list -> ('a * 'a) list
+val permutations : 'a list -> 'a list list
 
 val char_to_int : char -> int
 
