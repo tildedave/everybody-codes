@@ -2,7 +2,7 @@ open Base
 open Util
 
 type color = Black | Cyan | Magenta | Yellow | Green | Red | Blue
-[@@deriving equal, compare, sexp_of]
+[@@deriving equal, compare, sexp_of, show]
 
 module Color = struct
   type t = color [@@deriving compare, sexp_of]
@@ -119,4 +119,41 @@ let p2_example =
   ]
 
 let%test_unit "part2" = [%test_result: int] ~expect:180 (part2 p2_example)
-let part3 _ = 1
+
+let part3 l =
+  let g = to_grid l in
+  let m1 = Map.of_alist_exn (module IntPair_Comparator) (grid_to_alist g) in
+  (* assumption: black is not a top 3 color *)
+  let total =
+    Map.map m1 ~f:parse_color |> Map.to_sequence
+    |> Sequence.map ~f:(fun (_, color) -> (color, 1))
+    |> Map.of_sequence_reduce (module Color) ~f:( + )
+    |> Map.to_alist
+    |> List.sort ~compare:(Comparable.lift Int.descending ~f:snd)
+    |> fun l ->
+    List.take l 3
+    |> (fun l ->
+    assert (not (List.exists l ~f:(fun (c, _) -> equal_color c Black)));
+    l)
+    |> List.map ~f:snd
+    |> List.sum (module Int) ~f:Fn.id
+  in
+  match total % 3 with
+  | 0 -> (total / 3) ** 3
+  | 1 -> (total / 3 * total / 3 * (total / 3)) + 1
+  | 2 -> total / 3 * ((total / 3) + 1) * ((total / 3) + 1)
+  | _ -> failwith "impossible"
+
+let p3_example =
+  [
+    "CCCCYMMM";
+    "CCMMMYYY";
+    "CCCYYYMM";
+    "MMCCCYYY";
+    "YYYMMMCC";
+    "CCYYMMKK";
+    "MMYYCCKK";
+    "YYYCCMMM";
+  ]
+
+let%test_unit "part3" = [%test_result: int] ~expect:8000 (part3 p3_example)
