@@ -102,8 +102,6 @@ let part1 l =
 
 let%test_unit "part1" = [%test_result: int] ~expect:96 (part1 example)
 
-(* we can fake part2 pretty well.  presumably faking will not work for part3 *)
-
 let p2_parse s =
   Stdlib.Scanf.sscanf s "x=%d y=%d width=%d" (fun x y width -> (x, y, width))
 
