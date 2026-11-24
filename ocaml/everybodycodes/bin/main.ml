@@ -232,6 +232,12 @@ Stdio.print_endline
          | _ -> failwith "impossible"
        in
        Int.to_string @@ f lines
+   | "2026", "quest20", p -> (
+       match p with
+       | "1" -> Int.to_string (Y2026.Quest20.part1 lines)
+       | "2" -> Y2026.Quest20.part2 lines
+       | "3" -> Int.to_string (Y2026.Quest20.part3 lines)
+       | _ -> failwith "impossible")
    | "story1", "quest1", "1" -> Int.to_string @@ Story1.quest1part1 lines
    | "story1", "quest1", "2" -> Int.to_string @@ Story1.quest1part2 lines
    | "story1", "quest1", "3" -> Int.to_string @@ Story1.quest1part3 lines
