@@ -110,10 +110,10 @@ let avoids_crossings (x, y) arcs =
   assert (x < y);
   arcs
   |> List.filter ~f:(fun (h, t) ->
-         assert (h < t);
-         if h < x && x < y && y < t then false (* does not cross *)
-         else if x < h && h < t && t < y then false (* also does not cross *)
-         else (h < x && x < t) || (h < y && y < t))
+      assert (h < t);
+      if h < x && x < y && y < t then false (* does not cross *)
+      else if x < h && h < t && t < y then false (* also does not cross *)
+      else (h < x && x < t) || (h < y && y < t))
   |> List.is_empty
 
 let run_sequence_part3 l =
@@ -137,7 +137,7 @@ let run_sequence_part3 l =
                (* + 100 is a kludge, I want to end the process at some point *)
                if n > max_seen + 100 then None else Some (n, n + 1))
            |> Sequence.drop_while ~f:(fun n' ->
-                  Set.mem seen n' || not (avoids_crossings (n, n') arcs))
+               Set.mem seen n' || not (avoids_crossings (n, n') arcs))
            |> Sequence.hd
            |> Option.value_map ~default:(n, seen, arcs, other_arcs)
                 ~f:(fun forward_next ->
@@ -454,12 +454,12 @@ let parse_problem_part3 lines =
     horizontal_offsets =
       List.nth_exn lines 2 |> after_equals |> String.to_list
       |> List.map ~f:(fun ch ->
-             match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
+          match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
       |> Array.of_list;
     vertical_offsets =
       List.nth_exn lines 3 |> after_equals |> String.to_list
       |> List.map ~f:(fun ch ->
-             match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
+          match ch with '0' -> 0 | '1' -> 1 | _ -> failwith "invalid")
       |> Array.of_list;
   }
 

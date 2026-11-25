@@ -245,7 +245,7 @@ let max_message_per_tree tree =
   0 -- (tree_height - 1)
   |> List.map ~f:(message_per_level tree)
   |> List.max_elt ~compare:(fun s1 s2 ->
-         compare_int (String.length s1) (String.length s2))
+      compare_int (String.length s1) (String.length s2))
   |> Option.value_exn
 
 let process_line ?(part3 = false) (left_tree, right_tree) s =
@@ -368,7 +368,7 @@ let%test_unit "final_position (1)" =
 let quest3part1 l =
   l
   |> List.map ~f:(fun s ->
-         Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
+      Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
   |> List.map ~f:final_position
   |> List.map ~f:(fun (x, y) -> x + (100 * y))
   |> List.fold ~init:0 ~f:( + )
@@ -388,7 +388,7 @@ let to_residue (x, y) =
 let quest3part2 l =
   l
   |> List.map ~f:(fun s ->
-         Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
+      Stdlib.Scanf.sscanf s "x=%d y=%d" (fun x y -> (x, y)))
   |> List.map ~f:to_residue |> crt_inductive
 
 let%test_unit "part2 (given 1)" =

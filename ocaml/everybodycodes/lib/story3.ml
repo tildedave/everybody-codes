@@ -33,7 +33,7 @@ let%test_unit "parse" =
 let quest1part1 l =
   l |> List.map ~f:parse
   |> List.filter ~f:(fun l ->
-         match l with [ _; r; g; b ] -> g > r && g > b | _ -> assert false)
+      match l with [ _; r; g; b ] -> g > r && g > b | _ -> assert false)
   |> List.map ~f:List.hd_exn
   |> List.fold ~f:( + ) ~init:zero
 
@@ -57,10 +57,10 @@ let%test_unit "color_sum" =
 let quest1part2 l =
   l |> List.map ~f:parse
   |> List.sort_and_group ~compare:(fun l1 l2 ->
-         compare (List.last_exn l2) (List.last_exn l1))
+      compare (List.last_exn l2) (List.last_exn l1))
   |> List.hd_exn
   |> List.sort_and_group ~compare:(fun l1 l2 ->
-         compare (color_sum l1) (color_sum l2))
+      compare (color_sum l1) (color_sum l2))
   |> List.hd_exn |> List.hd_exn |> List.hd_exn
 
 let%test_unit "quest1part2" =
@@ -142,11 +142,11 @@ let quest1part3 l =
   |> List.map ~f:(fun l -> parse l)
   |> List.map ~f:(fun l -> (List.hd_exn l, group l))
   |> List.filter_map ~f:(fun (i, o) ->
-         match o with None -> None | Some p -> Some (i, p))
+      match o with None -> None | Some p -> Some (i, p))
   |> List.sort_and_group ~compare:(fun (_, (c1, s1)) (_, (c2, s2)) ->
-         match compare_color c1 c2 with 0 -> compare_shine s1 s2 | c -> c)
+      match compare_color c1 c2 with 0 -> compare_shine s1 s2 | c -> c)
   |> List.max_elt ~compare:(fun l1 l2 ->
-         compare (List.length l1) (List.length l2))
+      compare (List.length l1) (List.length l2))
   |> Option.value_exn
   |> List.fold ~init:zero ~f:(fun n (i, _) -> i + n)
 

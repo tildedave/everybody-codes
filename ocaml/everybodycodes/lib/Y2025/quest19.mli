@@ -1,1 +1,1 @@
-val flap: string list -> int
+val flap : string list -> int
