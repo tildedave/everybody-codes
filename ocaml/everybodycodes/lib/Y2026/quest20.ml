@@ -242,13 +242,10 @@ let%test_unit "digitlist_no_loan_transitions" =
   [%test_result: digit list list] ~expect:[]
     (Sequence.to_list (digitlist_no_loan_transitions [ Num 4; Num 1; Num 7 ]))
 
-let expr_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
-  (* then it's where every one of these gives one and any one of the others receives it *)
-  (* this is pretty rough lol *)
+let expr_no_loan_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
   Sequence.concat
-    (Sequence.of_list
+  @@ Sequence.of_list
        [
-         (* it's the zero transitions for everything *)
          (Sequence.map ~f:(fun dl1' ->
               (Op2 (o1, dl1', dl2), Op2 (o2, dl3, dl4))))
            (digitlist_no_loan_transitions dl1);
@@ -261,191 +258,68 @@ let expr_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
          (Sequence.map ~f:(fun dl4' ->
               (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4'))))
            (digitlist_no_loan_transitions dl4);
-         (* o1 gives a segment away (converting into a sub), who will receive it? *)
+       ]
+
+(* we receive something *)
+let expr_donee_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
+  Sequence.concat
+    (Sequence.of_list
+       [
          (match o1 with
-         | Add ->
-             Sequence.concat
-             @@ Sequence.of_list
-                  [
-                    (Sequence.map ~f:(fun dl1' ->
-                         (Op2 (Sub, dl1', dl2), Op2 (o2, dl3, dl4))))
-                      (digitlist_donee_transitions dl1);
-                    (Sequence.map ~f:(fun dl2' ->
-                         (Op2 (Sub, dl1, dl2'), Op2 (o2, dl3, dl4))))
-                      (digitlist_donee_transitions dl2);
-                    (Sequence.map ~f:(fun dl3' ->
-                         (Op2 (Sub, dl1, dl2), Op2 (o2, dl3', dl4))))
-                      (digitlist_donee_transitions dl3);
-                    (Sequence.map ~f:(fun dl4' ->
-                         (Op2 (Sub, dl1, dl2), Op2 (o2, dl3, dl4'))))
-                      (digitlist_donee_transitions dl4);
-                  ]
-         | Sub -> Sequence.empty);
-         (* o2 gives a segment away (converting into a sub), who will receive it? *)
+         | Add -> Sequence.empty
+         | Sub -> Sequence.singleton (Op2 (Add, dl1, dl2), Op2 (o2, dl3, dl4)));
          (match o2 with
-         | Add ->
-             Sequence.concat
-             @@ Sequence.of_list
-                  [
-                    (Sequence.map ~f:(fun dl1' ->
-                         (Op2 (o1, dl1', dl2), Op2 (Sub, dl3, dl4))))
-                      (digitlist_donee_transitions dl1);
-                    (Sequence.map ~f:(fun dl2' ->
-                         (Op2 (o1, dl1, dl2'), Op2 (Sub, dl3, dl4))))
-                      (digitlist_donee_transitions dl2);
-                    (Sequence.map ~f:(fun dl3' ->
-                         (Op2 (o1, dl1, dl2), Op2 (Sub, dl3', dl4))))
-                      (digitlist_donee_transitions dl3);
-                    (Sequence.map ~f:(fun dl4' ->
-                         (Op2 (o1, dl1, dl2), Op2 (Sub, dl3, dl4'))))
-                      (digitlist_donee_transitions dl4);
-                  ]
-         | Sub -> Sequence.empty);
-         (* dl1 gives a segment away, who will receive it? *)
-         (Sequence.concat_map ~f:(fun dl1' ->
-              Sequence.concat
-              @@ Sequence.of_list
-                   [
-                     (match o1 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (Add, dl1', dl2), Op2 (o2, dl3, dl4)));
-                     (match o2 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (o1, dl1', dl2), Op2 (Add, dl3, dl4)));
-                     Sequence.map
-                       ~f:(fun dl1'' ->
-                         (Op2 (o1, dl1'', dl2), Op2 (o2, dl3, dl4)))
-                       (digitlist_donee_transitions dl1');
-                     Sequence.map
-                       ~f:(fun dl2' ->
-                         (Op2 (o1, dl1', dl2'), Op2 (o2, dl3, dl4)))
-                       (digitlist_donee_transitions dl2);
-                     Sequence.map
-                       ~f:(fun dl3' ->
-                         (Op2 (o1, dl1', dl2), Op2 (o2, dl3', dl4)))
-                       (digitlist_donee_transitions dl3);
-                     Sequence.map
-                       ~f:(fun dl4' ->
-                         (Op2 (o1, dl1', dl2), Op2 (o2, dl3, dl4')))
-                       (digitlist_donee_transitions dl4);
-                   ]))
-           (digitlist_donor_transitions dl1);
-         (* then the same three more times lol *)
-         (* dl2 gives a segment away, who will receive it? *)
-         (Sequence.concat_map ~f:(fun dl2' ->
-              Sequence.concat
-              @@ Sequence.of_list
-                   [
-                     (match o1 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (Add, dl1, dl2'), Op2 (o2, dl3, dl4)));
-                     (match o2 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (o1, dl1, dl2'), Op2 (Add, dl3, dl4)));
-                     Sequence.map
-                       ~f:(fun dl1' ->
-                         (Op2 (o1, dl1', dl2'), Op2 (o2, dl3, dl4)))
-                       (digitlist_donee_transitions dl1);
-                     Sequence.map
-                       ~f:(fun dl2'' ->
-                         (Op2 (o1, dl1, dl2''), Op2 (o2, dl3, dl4)))
-                       (digitlist_donee_transitions dl2');
-                     Sequence.map
-                       ~f:(fun dl3' ->
-                         (Op2 (o1, dl1, dl2'), Op2 (o2, dl3', dl4)))
-                       (digitlist_donee_transitions dl3);
-                     Sequence.map
-                       ~f:(fun dl4' ->
-                         (Op2 (o1, dl1, dl2'), Op2 (o2, dl3, dl4')))
-                       (digitlist_donee_transitions dl4);
-                   ]))
-           (digitlist_donor_transitions dl2);
-         (* dl3 gives a segment away, who will receive it? *)
-         (Sequence.concat_map ~f:(fun dl3' ->
-              Sequence.concat
-              @@ Sequence.of_list
-                   [
-                     (match o1 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (Add, dl1, dl2), Op2 (o2, dl3', dl4)));
-                     (match o2 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (o1, dl1, dl2), Op2 (Add, dl3', dl4)));
-                     Sequence.map
-                       ~f:(fun dl1' ->
-                         (Op2 (o1, dl1', dl2), Op2 (o2, dl3', dl4)))
-                       (digitlist_donee_transitions dl1);
-                     Sequence.map
-                       ~f:(fun dl2' ->
-                         (Op2 (o1, dl1, dl2'), Op2 (o2, dl3', dl4)))
-                       (digitlist_donee_transitions dl2);
-                     Sequence.map
-                       ~f:(fun dl3'' ->
-                         (Op2 (o1, dl1, dl2), Op2 (o2, dl3'', dl4)))
-                       (digitlist_donee_transitions dl3');
-                     Sequence.map
-                       ~f:(fun dl4' ->
-                         (Op2 (o1, dl1, dl2), Op2 (o2, dl3', dl4')))
-                       (digitlist_donee_transitions dl4);
-                   ]))
-           (digitlist_donor_transitions dl3);
-         (* dl4 gives a segment away, who will receive it? *)
-         (Sequence.concat_map ~f:(fun dl4' ->
-              Sequence.concat
-              @@ Sequence.of_list
-                   [
-                     (match o1 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (Add, dl1, dl2), Op2 (o2, dl3, dl4')));
-                     (match o2 with
-                     | Add -> Sequence.empty
-                     | Sub ->
-                         Sequence.singleton
-                           (Op2 (o1, dl1, dl2), Op2 (Add, dl3, dl4')));
-                     Sequence.map
-                       ~f:(fun dl1' ->
-                         (Op2 (o1, dl1', dl2), Op2 (o2, dl3, dl4')))
-                       (digitlist_donee_transitions dl1);
-                     Sequence.map
-                       ~f:(fun dl2' ->
-                         (Op2 (o1, dl1, dl2'), Op2 (o2, dl3, dl4')))
-                       (digitlist_donee_transitions dl2);
-                     Sequence.map
-                       ~f:(fun dl3' ->
-                         (Op2 (o1, dl1, dl2), Op2 (o2, dl3', dl4')))
-                       (digitlist_donee_transitions dl3);
-                     Sequence.map
-                       ~f:(fun dl4'' ->
-                         (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4'')))
-                       (digitlist_donee_transitions dl4');
-                   ]))
-           (digitlist_donor_transitions dl4);
-         (* can swap add and subs too, yes *)
-         Sequence.concat
-           (Sequence.of_list
-              [
-                (match (o1, o2) with
-                | Add, Sub ->
-                    Sequence.singleton (Op2 (Sub, dl1, dl2), Op2 (Add, dl3, dl4))
-                | Sub, Add ->
-                    Sequence.singleton (Op2 (Add, dl1, dl2), Op2 (Sub, dl3, dl4))
-                | _ -> Sequence.empty);
-              ]);
+         | Add -> Sequence.empty
+         | Sub -> Sequence.singleton (Op2 (o1, dl1, dl2), Op2 (Add, dl3, dl4)));
+         (Sequence.map ~f:(fun dl1' ->
+              (Op2 (o1, dl1', dl2), Op2 (o2, dl3, dl4))))
+           (digitlist_donee_transitions dl1);
+         (Sequence.map ~f:(fun dl2' ->
+              (Op2 (o1, dl1, dl2'), Op2 (o2, dl3, dl4))))
+           (digitlist_donee_transitions dl2);
+         (Sequence.map ~f:(fun dl3' ->
+              (Op2 (o1, dl1, dl2), Op2 (o2, dl3', dl4))))
+           (digitlist_donee_transitions dl3);
+         (Sequence.map ~f:(fun dl4' ->
+              (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4'))))
+           (digitlist_donee_transitions dl4);
        ])
+
+let expr_donor_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
+  Sequence.concat
+    (Sequence.of_list
+       [
+         (match o1 with
+         | Add -> Sequence.singleton (Op2 (Sub, dl1, dl2), Op2 (o2, dl3, dl4))
+         | Sub -> Sequence.empty);
+         (match o2 with
+         | Add -> Sequence.singleton (Op2 (o1, dl1, dl2), Op2 (Sub, dl3, dl4))
+         | Sub -> Sequence.empty);
+         (Sequence.map ~f:(fun dl1' ->
+              (Op2 (o1, dl1', dl2), Op2 (o2, dl3, dl4))))
+           (digitlist_donor_transitions dl1);
+         (Sequence.map ~f:(fun dl2' ->
+              (Op2 (o1, dl1, dl2'), Op2 (o2, dl3, dl4))))
+           (digitlist_donor_transitions dl2);
+         (Sequence.map ~f:(fun dl3' ->
+              (Op2 (o1, dl1, dl2), Op2 (o2, dl3', dl4))))
+           (digitlist_donor_transitions dl3);
+         (Sequence.map ~f:(fun dl4' ->
+              (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4'))))
+           (digitlist_donor_transitions dl4);
+       ])
+
+let expr_transitions expr_pair =
+  (* then it's where every one of these gives one and any one of the others receives it *)
+  (* this is pretty rough lol *)
+  Sequence.concat
+  @@ Sequence.of_list
+       [
+         expr_no_loan_transitions expr_pair;
+         Sequence.concat
+           (Sequence.map ~f:expr_donee_transitions
+              (expr_donor_transitions expr_pair));
+       ]
 
 let can_be_made_valid expr1 expr2 =
   Option.is_some
