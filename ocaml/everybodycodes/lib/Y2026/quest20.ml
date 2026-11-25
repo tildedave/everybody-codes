@@ -310,16 +310,10 @@ let expr_donor_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
        ])
 
 let expr_transitions expr_pair =
-  (* then it's where every one of these gives one and any one of the others receives it *)
-  (* this is pretty rough lol *)
-  Sequence.concat
-  @@ Sequence.of_list
-       [
-         expr_no_loan_transitions expr_pair;
-         Sequence.concat
-           (Sequence.map ~f:expr_donee_transitions
-              (expr_donor_transitions expr_pair));
-       ]
+  Sequence.append
+    (expr_no_loan_transitions expr_pair)
+    (Sequence.concat_map ~f:expr_donee_transitions
+       (expr_donor_transitions expr_pair))
 
 let can_be_made_valid expr1 expr2 =
   Option.is_some
