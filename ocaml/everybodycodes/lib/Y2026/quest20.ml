@@ -142,18 +142,12 @@ let digit_donee_transitions d =
   Sequence.of_list
   @@
   match d with
-  | Num 0 -> [ Num 8 ]
+  | Num 0 | Num 6 | Num 9 | A -> [ Num 8 ]
   | Num 1 -> [ Num 7 ]
-  | Num 2 -> []
   | Num 3 -> [ Num 9 ]
-  | Num 4 -> []
   | Num 5 -> [ Num 6; Num 9 ]
-  | Num 6 -> [ Num 8 ]
-  | Num 7 -> []
-  | Num 8 -> []
-  | Num 9 -> [ Num 8 ]
+  | Num 2 | Num 4 | Num 7 | Num 8 -> []
   | Num _ -> failwith "invalid"
-  | A -> [ Num 8 ]
 
 (* we give away a segment *)
 (* could compute this from the donee transitions actually *)
@@ -161,12 +155,7 @@ let digit_donor_transitions d =
   Sequence.of_list
   @@
   match d with
-  | Num 0 -> []
-  | Num 1 -> []
-  | Num 2 -> []
-  | Num 3 -> []
-  | Num 4 -> []
-  | Num 5 -> []
+  | Num 0 | Num 1 | Num 2 | Num 3 | Num 4 | Num 5 -> []
   | Num 6 -> [ Num 5 ]
   | Num 7 -> [ Num 1 ]
   | Num 8 -> [ A; Num 6; Num 0; Num 9 ]
@@ -178,18 +167,15 @@ let digit_no_loan_transitions d =
   Sequence.of_list
   @@
   match d with
-  | Num 0 -> [ Num 9 ]
-  | Num 1 -> []
+  | Num 0 -> [ Num 9; Num 6; A ]
   | Num 2 -> [ Num 3 ]
   | Num 3 -> [ Num 2; Num 5 ]
-  | Num 4 -> []
   | Num 5 -> [ Num 3 ]
   | Num 6 -> [ Num 0; Num 9; A ]
-  | Num 7 -> []
-  | Num 8 -> []
   | Num 9 -> [ Num 0; Num 6; A ]
+  | Num 1 | Num 4 | Num 7 | Num 8 -> []
   | Num _ -> failwith "invalid"
-  | A -> [ Num 6; Num 9 ]
+  | A -> [ Num 6; Num 9; Num 0 ]
 
 let all_digits =
   [ Num 0; Num 1; Num 2; Num 3; Num 4; Num 5; Num 6; Num 7; Num 8; Num 9; A ]
@@ -242,7 +228,14 @@ let digitlist_donee_transitions = transitions digit_donee_transitions
 let%test_unit "digitlist_no_loan_transitions" =
   [%test_result: digit list list]
     ~expect:
-      [ [ Num 9; Num 1; A ]; [ Num 0; Num 1; Num 6 ]; [ Num 0; Num 1; Num 9 ] ]
+      [
+        [ Num 9; Num 1; A ];
+        [ Num 6; Num 1; A ];
+        [ A; Num 1; A ];
+        [ Num 0; Num 1; Num 6 ];
+        [ Num 0; Num 1; Num 9 ];
+        [ Num 0; Num 1; Num 0 ];
+      ]
     (Sequence.to_list (digitlist_no_loan_transitions [ Num 0; Num 1; A ]))
 
 let%test_unit "digitlist_no_loan_transitions" =
@@ -387,8 +380,8 @@ let expr_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
                          (Op2 (o1, dl1', dl2), Op2 (o2, dl3', dl4)))
                        (digitlist_donee_transitions dl1);
                      Sequence.map
-                       ~f:(fun dl2'' ->
-                         (Op2 (o1, dl1, dl2''), Op2 (o2, dl3', dl4)))
+                       ~f:(fun dl2' ->
+                         (Op2 (o1, dl1, dl2'), Op2 (o2, dl3', dl4)))
                        (digitlist_donee_transitions dl2);
                      Sequence.map
                        ~f:(fun dl3'' ->
@@ -416,7 +409,7 @@ let expr_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
                      | Sub -> Sequence.empty);
                    ]))
            (digitlist_donee_transitions dl3);
-         (* dl2 gives a segment away, who will receive it? *)
+         (* dl4 gives a segment away, who will receive it? *)
          (Sequence.concat_map ~f:(fun dl4' ->
               Sequence.concat
               @@ Sequence.of_list
@@ -465,12 +458,67 @@ let expr_transitions (Op2 (o1, dl1, dl2), Op2 (o2, dl3, dl4)) =
                      | Sub -> Sequence.empty);
                    ]))
            (digitlist_donee_transitions dl4);
+         (* can swap add and subs too, yes *)
+         Sequence.concat
+           (Sequence.of_list
+              [
+                (match (o1, o2) with
+                | Add, Sub ->
+                    Sequence.singleton (Op2 (Sub, dl1, dl2), Op2 (Add, dl3, dl4))
+                | Sub, Add ->
+                    Sequence.singleton (Op2 (Add, dl1, dl2), Op2 (Sub, dl3, dl4))
+                | _ -> Sequence.empty);
+              ]);
        ])
 
-(* match o1 with
-  | Add ->
-      Sequence.map
-        ~f:(fun dl1' -> (Op2 (Sub, dl1', dl2), Op2 (o2, dl3, dl4)))
-        (digitlist_donee_transitions dl1) *)
+let can_be_made_valid expr1 expr2 =
+  Option.is_some
+  @@ Sequence.find
+       ~f:(Tuple2.uncurry is_valid_p2)
+       (expr_transitions (expr1, expr2))
 
-let part3 _ = 1
+let p3_example =
+  [
+    "1 + 1 = 5 - 1";
+    "1 + 1 = 3 - 3";
+    "0 - 1 = 1 + 7";
+    "1 + 1 = 1 - 6";
+    "1 + 1 = 2 - 1";
+    "1 + 1 = 5 + 7";
+    "1 + 4 = 9 - 9";
+    "1 + 1 = 2 + 9";
+    "1 + 1 = 1 + 2";
+  ]
+
+let part3 l =
+  l
+  |> List.filter_map ~f:(fun s ->
+      let result = parse_p2 s in
+      if (Tuple2.uncurry is_valid_p2) result then Some result
+      else if (Tuple2.uncurry can_be_made_valid) result then Some result
+      else None)
+  |> List.sum
+       (module Int)
+       ~f:(fun (e1, e2) -> segments_of_expr_p2 e1 + 2 + segments_of_expr_p2 e2)
+  |> to_base11
+
+let p3_example2 =
+  [
+    "4469 - 5934 = 1631 - 2AA7";
+    "8471 - 2276 = 4510 + 2736";
+    "A767 - 6104 = 1825 + 2538";
+    "9961 + 1140 = 5963 + 2974";
+    "9188 - 406A = 3598 + 1533";
+    "96A6 - 1606 = 4676 - 3524";
+    "9114 - 15A2 = 5258 + 2371";
+    "7023 - 2209 = 1433 + 3436";
+    "921A - 2696 = 2A91 + 3688";
+    "8492 - 2055 = 4186 + 3260";
+    "1234 + 4567 = 8901 + 2345";
+  ]
+
+let%test_unit "part3 (given)" =
+  [%test_result: string] ~expect:"125" (part3 p3_example)
+
+let%test_unit "part3 (given)" =
+  [%test_result: string] ~expect:"693" (part3 p3_example2)
